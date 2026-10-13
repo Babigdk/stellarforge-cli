@@ -8,7 +8,11 @@ on:
 permissions:
   contents: read
   issues: write
-  pull-requests: write
+  pull-requests: read
+
+concurrency:
+  group: wave-stale-review
+  cancel-in-progress: false
 
 jobs:
   stale:
@@ -16,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Warn and close stale Wave PRs
+      - name: Warn and escalate stale Wave PRs
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
@@ -24,39 +28,100 @@ jobs:
             const repo = context.repo.repo;
             const now = Date.now();
             const DAY = 24 * 60 * 60 * 1000;
-            const WARN_AFTER = 7 * DAY;
-            const CLOSE_AFTER = 21 * DAY;
-            const pulls = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', per_page: 100 });
+            const WARN_AFTER = 2 * DAY;
+            const ESCALATE_AFTER = 4 * DAY;
+            const WARNING_MARKER = '<!-- stellarforge-wave-stale-warning -->';
+            const ESCALATION_MARKER = '<!-- stellarforge-wave-stale-escalation -->';
+            const pulls = await github.paginate(github.rest.pulls.list, {
+              owner, repo, state: 'open', per_page: 100,
+            });
 
             for (const pr of pulls) {
-              if (pr.draft) continue;
-              const age = now - new Date(pr.updated_at).getTime();
               const labels = new Set(pr.labels.map((label) => label.name));
               if (labels.has('do-not-close')) continue;
 
-              const ref = (pr.body || '').match(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i);
+              const ref = (pr.body || '').match(
+                /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i,
+              );
               if (!ref) continue;
+
               let issue;
               try {
-                ({ data: issue } = await github.rest.issues.get({ owner, repo, issue_number: Number(ref[1]) }));
+                ({ data: issue } = await github.rest.issues.get({
+                  owner, repo, issue_number: Number(ref[1]),
+                }));
               } catch {
                 continue;
               }
               if (!issue.labels.some((label) => label.name === 'Stellar Wave')) continue;
 
-              if (age >= CLOSE_AFTER) {
-                await github.rest.issues.createComment({
-                  owner, repo, issue_number: pr.number,
-                  body: 'Closing this contributor PR after 21 days without activity. The linked issue can be reclaimed. A maintainer can reopen the PR if work resumes.',
-                });
-                await github.rest.pulls.update({ owner, repo, pull_number: pr.number, state: 'closed' });
+              const [commits, comments] = await Promise.all([
+                github.paginate(github.rest.pulls.listCommits, {
+                  owner, repo, pull_number: pr.number, per_page: 100,
+                }),
+                github.paginate(github.rest.issues.listComments, {
+                  owner, repo, issue_number: pr.number, per_page: 100,
+                }),
+              ]);
+
+              const activityDates = [new Date(pr.created_at).getTime()];
+              for (const commit of commits) {
+                const date = commit.commit?.committer?.date || commit.commit?.author?.date;
+                if (date) activityDates.push(new Date(date).getTime());
+              }
+              for (const comment of comments) {
+                if (comment.user?.login === pr.user.login) {
+                  activityDates.push(new Date(comment.created_at).getTime());
+                }
+              }
+
+              const lastContributorActivity = Math.max(...activityDates);
+              const inactiveFor = now - lastContributorActivity;
+              const workflowComments = comments.filter((comment) =>
+                [WARNING_MARKER, ESCALATION_MARKER].some((marker) =>
+                  (comment.body || '').includes(marker),
+                ),
+              );
+              const warnedSinceActivity = workflowComments.some((comment) =>
+                (comment.body || '').includes(WARNING_MARKER) &&
+                new Date(comment.created_at).getTime() > lastContributorActivity,
+              );
+              const escalatedSinceActivity = workflowComments.some((comment) =>
+                (comment.body || '').includes(ESCALATION_MARKER) &&
+                new Date(comment.created_at).getTime() > lastContributorActivity,
+              );
+
+              if (inactiveFor < WARN_AFTER) {
+                if (labels.has('status: stale')) {
+                  try {
+                    await github.rest.issues.removeLabel({
+                      owner, repo, issue_number: pr.number, name: 'status: stale',
+                    });
+                  } catch (error) {
+                    if (error.status !== 404) throw error;
+                  }
+                }
                 continue;
               }
-              if (age >= WARN_AFTER && !labels.has('status: stale')) {
-                await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: ['status: stale'] });
+
+              if (!labels.has('status: stale')) {
+                await github.rest.issues.addLabels({
+                  owner, repo, issue_number: pr.number, labels: ['status: stale'],
+                });
+              }
+
+              if (inactiveFor >= ESCALATE_AFTER && !escalatedSinceActivity) {
                 await github.rest.issues.createComment({
                   owner, repo, issue_number: pr.number,
-                  body: 'This PR has had no activity for 7 days. Please post an update or push progress. It may be closed after 21 days of inactivity.',
+                  body: ESCALATION_MARKER + '\nThis Stellar Wave PR has no contributor commit or progress comment for 4 days. A maintainer should now review whether to retain or release the assignment. The automation does not close the PR or change the Drips assignment.',
+                });
+                continue;
+              }
+
+              if (!warnedSinceActivity) {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: pr.number,
+                  body: WARNING_MARKER + '\nThis Stellar Wave PR has no contributor commit or progress comment for 48 hours. Please post a concise update, push current progress, or tell the maintainer if the issue should be released.',
                 });
               }
             }
