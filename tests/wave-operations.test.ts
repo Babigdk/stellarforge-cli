@@ -40,6 +40,10 @@ describe('Drips Wave operations policy', () => {
     expect(staleWorkflow).toContain('const WARN_AFTER = 2 * DAY');
     expect(staleWorkflow).toContain('const ESCALATE_AFTER = 4 * DAY');
     expect(staleWorkflow).toContain('lastContributorActivity');
+    expect(staleWorkflow).toContain('listReviewComments');
+    expect(staleWorkflow).toContain(
+      "commit.author?.login !== pr.user.login",
+    );
     expect(staleWorkflow).not.toContain('github.rest.pulls.update');
     expect(staleWorkflow).not.toContain("state: 'closed'");
   });
@@ -57,6 +61,9 @@ describe('Drips Wave operations policy', () => {
     expect(readinessWorkflow).toContain("const labelName = 'review: ready'");
     expect(readinessWorkflow).toContain("label.name === 'Stellar Wave'");
     expect(readinessWorkflow).toContain('issue.assignees.some');
+    expect(readinessWorkflow).toContain(
+      'pull.head.sha === run.head_sha',
+    );
     expect(readinessWorkflow).not.toContain('pulls.merge');
     expect(readinessWorkflow).not.toContain('enablePullRequestAutoMerge');
   });
