@@ -55,21 +55,25 @@ jobs:
               }
               if (!issue.labels.some((label) => label.name === 'Stellar Wave')) continue;
 
-              const [commits, comments] = await Promise.all([
+              const [commits, comments, reviewComments] = await Promise.all([
                 github.paginate(github.rest.pulls.listCommits, {
                   owner, repo, pull_number: pr.number, per_page: 100,
                 }),
                 github.paginate(github.rest.issues.listComments, {
                   owner, repo, issue_number: pr.number, per_page: 100,
                 }),
+                github.paginate(github.rest.pulls.listReviewComments, {
+                  owner, repo, pull_number: pr.number, per_page: 100,
+                }),
               ]);
 
               const activityDates = [new Date(pr.created_at).getTime()];
               for (const commit of commits) {
-                const date = commit.commit?.committer?.date || commit.commit?.author?.date;
+                if (commit.author?.login !== pr.user.login) continue;
+                const date = commit.commit?.author?.date || commit.commit?.committer?.date;
                 if (date) activityDates.push(new Date(date).getTime());
               }
-              for (const comment of comments) {
+              for (const comment of [...comments, ...reviewComments]) {
                 if (comment.user?.login === pr.user.login) {
                   activityDates.push(new Date(comment.created_at).getTime());
                 }
