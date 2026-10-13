@@ -1,4 +1,4 @@
-name: Wave Claim
+name: Wave Application Guidance
 
 on:
   issue_comment:
@@ -9,13 +9,13 @@ permissions:
   issues: write
 
 jobs:
-  claim:
-    name: Process contributor claim command
+  guidance:
+    name: Direct claim commands to Drips
     if: github.event.issue.pull_request == null
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Claim or release Wave issue
+      - name: Explain the official assignment process
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
@@ -26,61 +26,28 @@ jobs:
             const command = (context.payload.comment.body || '').trim().toLowerCase();
             if (!['/claim', '/unclaim'].includes(command)) return;
 
-            const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: issueNumber });
+            const { data: issue } = await github.rest.issues.get({
+              owner, repo, issue_number: issueNumber,
+            });
             const labels = new Set(issue.labels.map((label) => label.name));
+
             if (!labels.has('Stellar Wave')) {
-              core.setFailed('Claim commands are limited to Stellar Wave issues.');
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: issueNumber,
+                body: '@' + actor + ', this issue is not currently active in the Drips Stellar Wave program. Please wait for a maintainer to activate the issue before applying.',
+              });
               return;
             }
 
             if (command === '/claim') {
-              if (!labels.has('intake: ready') || labels.has('blocked')) {
-                await github.rest.issues.createComment({
-                  owner, repo, issue_number: issueNumber,
-                  body: 'This issue is not currently open for claims. Please choose an issue labeled intake: ready.',
-                });
-                return;
-              }
-              if (issue.assignees.length > 0 && !issue.assignees.some((a) => a.login === actor)) {
-                await github.rest.issues.createComment({
-                  owner, repo, issue_number: issueNumber,
-                  body: 'This issue is already assigned. Please choose another ready issue.',
-                });
-                return;
-              }
-              await github.rest.issues.addAssignees({ owner, repo, issue_number: issueNumber, assignees: [actor] });
-              await github.rest.issues.addLabels({ owner, repo, issue_number: issueNumber, labels: ['status: in progress'] });
-              for (const name of ['help wanted', 'status: stale']) {
-                try {
-                  await github.rest.issues.removeLabel({ owner, repo, issue_number: issueNumber, name });
-                } catch (error) {
-                  if (error.status !== 404) throw error;
-                }
-              }
               await github.rest.issues.createComment({
                 owner, repo, issue_number: issueNumber,
-                body: 'Assigned to @' + actor + '. Keep the PR focused on this issue, link it in the PR body, and follow the frozen contributor architecture.',
+                body: '@' + actor + ', Stellar Wave issues are assigned through the Drips application process, not by GitHub self-claim. Please apply for this issue in Drips and wait for maintainer acceptance and GitHub assignment before starting substantial work.',
               });
               return;
             }
 
-            if (!issue.assignees.some((a) => a.login === actor)) {
-              await github.rest.issues.createComment({
-                owner, repo, issue_number: issueNumber,
-                body: '@' + actor + ', you can only unclaim an issue currently assigned to you.',
-              });
-              return;
-            }
-            await github.rest.issues.removeAssignees({ owner, repo, issue_number: issueNumber, assignees: [actor] });
-            try {
-              await github.rest.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: 'status: in progress' });
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
-            await github.rest.issues.addLabels({
-              owner, repo, issue_number: issueNumber, labels: ['help wanted', 'intake: ready'],
-            });
             await github.rest.issues.createComment({
               owner, repo, issue_number: issueNumber,
-              body: '@' + actor + ' released this issue. It is available for another contributor.',
+              body: '@' + actor + ', release or withdraw your assignment through Drips and notify the maintainer. This command does not automatically change the official Drips or GitHub assignment.',
             });
