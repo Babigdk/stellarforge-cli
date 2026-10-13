@@ -11,6 +11,22 @@ Thank you for contributing to StellarForge CLI. The project is being built as pr
 5. Ask for clarification in the issue before making architecture-expanding assumptions.
 6. Do not disclose suspected vulnerabilities in public issues; follow `SECURITY.md`.
 
+## Drips Stellar Wave Contributions
+
+Stellar Wave assignments are managed through the Drips Wave application, not by first-come-first-served GitHub comments.
+
+1. Complete the Drips participant requirements and apply for the issue in Drips.
+2. Wait until a maintainer accepts the application and the contributor is assigned on GitHub.
+3. Do not begin substantial work before official assignment.
+4. Work on one active StellarForge issue at a time unless a maintainer explicitly approves otherwise.
+5. Open one focused pull request that uses exactly one closing reference, for example `Closes #123`.
+6. Post a progress update if no commit or pull-request update is visible for 48 hours.
+7. Respond promptly to review feedback so the contribution can be resolved during the active Wave.
+
+The `/claim` and `/unclaim` comments do not create or release Drips assignments. They only return guidance to use the official Drips process. A GitHub issue becomes active in the Stellar Wave program only when a maintainer explicitly adds it through Drips or authorizes the exact `Stellar Wave` label.
+
+Maintainers follow `docs/contributing/drips-wave-operations.md` for activation, application review, assignment, stale-work escalation, PR review, and resolution.
+
 ## Development Workflow
 
 1. Fork or clone the repository.
