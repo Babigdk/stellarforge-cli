@@ -73,7 +73,7 @@ jobs:
             }
 
             if (!issue.assignees.some((a) => a.login === pr.user.login)) {
-              core.setFailed('PR author must claim and be assigned to the linked Wave issue before merge.');
+              core.setFailed('PR author must be accepted through Drips and assigned to the linked Wave issue before merge.');
               return;
             }
 
