@@ -14,14 +14,12 @@ describe('Drips Wave operations policy', () => {
     'workflows',
     'wave-pr-readiness.yml',
   );
-  const runbook = read(
-    'docs',
-    'contributing',
-    'drips-wave-operations.md',
-  );
+  const runbook = read('docs', 'contributing', 'drips-wave-operations.md');
 
   it('requires official Drips application and assignment', () => {
-    expect(contributing).toContain('managed through the Drips Wave application');
+    expect(contributing).toContain(
+      'managed through the Drips Wave application',
+    );
     expect(contributing).toContain(
       'Wait until a maintainer accepts the application',
     );
