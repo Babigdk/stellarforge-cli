@@ -55,7 +55,15 @@ jobs:
               });
             }
 
-            const pullRefs = context.payload.workflow_run.pull_requests || [];
+            const run = context.payload.workflow_run;
+            let pullRefs = run.pull_requests || [];
+            if (!pullRefs.length) {
+              const openPulls = await github.paginate(github.rest.pulls.list, {
+                owner, repo, state: 'open', per_page: 100,
+              });
+              pullRefs = openPulls.filter((pull) => pull.head.sha === run.head_sha);
+            }
+
             for (const pullRef of pullRefs) {
               const { data: pr } = await github.rest.pulls.get({
                 owner, repo, pull_number: pullRef.number,
