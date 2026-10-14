@@ -22,7 +22,7 @@
     "wave_active": []
   },
   "sequencing": {
-    "rule": "Activate tier 0 first; activate later tiers only after all listed dependencies are completed. Serialize issues sharing a non-null conflict_group.",
+    "rule": "When activation is authorized, register all 120 candidates for the Wave. Accept and assign Tier 0/intake-ready work first; accept and assign later tiers only after all listed dependencies are completed. Serialize issues sharing a non-null conflict_group.",
     "tier_counts": {
       "0": 36,
       "1": 26,
@@ -34,7 +34,8 @@
       "7": 1,
       "8": 3,
       "9": 1
-    }
+    },
+    "current_intake_ready": 16
   },
   "issues": [
     {
@@ -51,8 +52,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-002",
@@ -68,8 +69,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-003",
@@ -85,8 +86,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-004",
@@ -102,8 +103,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-005",
@@ -119,8 +120,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-006",
@@ -136,8 +137,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-007",
@@ -153,8 +154,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-008",
@@ -170,8 +171,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-009",
@@ -187,8 +188,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-010",
@@ -204,8 +205,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-011",
@@ -221,8 +222,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-012",
@@ -238,8 +239,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-013",
@@ -255,8 +256,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-014",
@@ -272,8 +273,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-019",
@@ -289,8 +290,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-020",
@@ -306,8 +307,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": true,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-015",
@@ -323,8 +324,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-016",
@@ -340,8 +341,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-017",
@@ -357,8 +358,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-018",
@@ -374,8 +375,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-021",
@@ -397,8 +398,8 @@
       ],
       "protected_surface": true,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": "diagnostics/diagnostics"
+      "conflict_group": "diagnostics/diagnostics",
+      "assignment_tier": 1
     },
     {
       "key": "SW-031",
@@ -418,8 +419,8 @@
       ],
       "protected_surface": true,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": "generator/generator"
+      "conflict_group": "generator/generator",
+      "assignment_tier": 1
     },
     {
       "key": "SW-056",
@@ -435,8 +436,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-066",
@@ -452,8 +453,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-104",
@@ -469,8 +470,8 @@
       "dependencies": [],
       "protected_surface": true,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": "ci/ci"
+      "conflict_group": "ci/ci",
+      "assignment_tier": 0
     },
     {
       "key": "SW-105",
@@ -486,8 +487,8 @@
       "dependencies": [],
       "protected_surface": true,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": "ci/ci"
+      "conflict_group": "ci/ci",
+      "assignment_tier": 0
     },
     {
       "key": "SW-107",
@@ -503,8 +504,8 @@
       "dependencies": [],
       "protected_surface": true,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": "security/security"
+      "conflict_group": "security/security",
+      "assignment_tier": 0
     },
     {
       "key": "SW-109",
@@ -520,8 +521,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-114",
@@ -537,8 +538,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-022",
@@ -556,8 +557,8 @@
       ],
       "protected_surface": true,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": "diagnostics/diagnostics"
+      "conflict_group": "diagnostics/diagnostics",
+      "assignment_tier": 2
     },
     {
       "key": "SW-023",
@@ -575,8 +576,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-024",
@@ -595,8 +596,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-025",
@@ -615,8 +616,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-026",
@@ -635,8 +636,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-027",
@@ -655,8 +656,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-028",
@@ -674,8 +675,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-029",
@@ -693,8 +694,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-030",
@@ -713,8 +714,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-032",
@@ -732,8 +733,8 @@
       ],
       "protected_surface": true,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": "generator/generator"
+      "conflict_group": "generator/generator",
+      "assignment_tier": 2
     },
     {
       "key": "SW-033",
@@ -751,8 +752,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-034",
@@ -770,8 +771,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-035",
@@ -789,8 +790,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-036",
@@ -808,8 +809,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-037",
@@ -827,8 +828,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-038",
@@ -847,8 +848,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-039",
@@ -866,8 +867,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-040",
@@ -887,8 +888,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-041",
@@ -907,8 +908,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-042",
@@ -926,8 +927,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-043",
@@ -946,8 +947,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-044",
@@ -965,8 +966,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-045",
@@ -984,8 +985,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-046",
@@ -1004,8 +1005,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-047",
@@ -1023,8 +1024,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-048",
@@ -1042,8 +1043,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-049",
@@ -1062,8 +1063,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-050",
@@ -1081,8 +1082,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-051",
@@ -1100,8 +1101,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-052",
@@ -1122,8 +1123,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-053",
@@ -1144,8 +1145,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-054",
@@ -1166,8 +1167,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-055",
@@ -1185,8 +1186,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 4,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 4
     },
     {
       "key": "SW-057",
@@ -1202,8 +1203,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-058",
@@ -1219,8 +1220,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-059",
@@ -1236,8 +1237,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-060",
@@ -1255,8 +1256,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-061",
@@ -1274,8 +1275,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-062",
@@ -1293,8 +1294,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-063",
@@ -1310,8 +1311,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-064",
@@ -1329,8 +1330,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-065",
@@ -1350,8 +1351,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-067",
@@ -1367,8 +1368,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-068",
@@ -1384,8 +1385,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-069",
@@ -1404,8 +1405,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-070",
@@ -1423,8 +1424,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-071",
@@ -1442,8 +1443,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-072",
@@ -1462,8 +1463,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 4,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 4
     },
     {
       "key": "SW-073",
@@ -1482,8 +1483,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 4,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 4
     },
     {
       "key": "SW-074",
@@ -1502,8 +1503,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 4,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 4
     },
     {
       "key": "SW-075",
@@ -1526,8 +1527,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 5,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 5
     },
     {
       "key": "SW-076",
@@ -1545,8 +1546,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-077",
@@ -1564,8 +1565,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-078",
@@ -1583,8 +1584,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-079",
@@ -1602,8 +1603,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-080",
@@ -1622,8 +1623,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-081",
@@ -1641,8 +1642,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-082",
@@ -1661,8 +1662,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-083",
@@ -1680,8 +1681,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-084",
@@ -1699,8 +1700,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-085",
@@ -1718,8 +1719,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-086",
@@ -1737,8 +1738,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-087",
@@ -1756,8 +1757,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-088",
@@ -1775,8 +1776,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 4,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 4
     },
     {
       "key": "SW-089",
@@ -1794,8 +1795,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 5,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 5
     },
     {
       "key": "SW-090",
@@ -1814,8 +1815,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 6,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 6
     },
     {
       "key": "SW-091",
@@ -1833,8 +1834,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 5,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 5
     },
     {
       "key": "SW-092",
@@ -1854,8 +1855,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 7,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 7
     },
     {
       "key": "SW-093",
@@ -1880,8 +1881,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 8,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 8
     },
     {
       "key": "SW-094",
@@ -1899,8 +1900,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-095",
@@ -1918,8 +1919,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-096",
@@ -1937,8 +1938,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-097",
@@ -1956,8 +1957,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-098",
@@ -1975,8 +1976,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-099",
@@ -1994,8 +1995,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-100",
@@ -2013,8 +2014,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-101",
@@ -2033,8 +2034,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 4,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 4
     },
     {
       "key": "SW-102",
@@ -2056,8 +2057,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 3
     },
     {
       "key": "SW-103",
@@ -2076,8 +2077,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 8,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 8
     },
     {
       "key": "SW-106",
@@ -2095,8 +2096,8 @@
       ],
       "protected_surface": true,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": "ci/ci"
+      "conflict_group": "ci/ci",
+      "assignment_tier": 1
     },
     {
       "key": "SW-108",
@@ -2112,8 +2113,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-110",
@@ -2131,8 +2132,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 1,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 1
     },
     {
       "key": "SW-111",
@@ -2150,8 +2151,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 2,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 2
     },
     {
       "key": "SW-112",
@@ -2170,8 +2171,8 @@
       ],
       "protected_surface": true,
       "intake_ready": false,
-      "activation_tier": 3,
-      "conflict_group": "release/release"
+      "conflict_group": "release/release",
+      "assignment_tier": 3
     },
     {
       "key": "SW-113",
@@ -2189,8 +2190,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 4,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 4
     },
     {
       "key": "SW-115",
@@ -2206,8 +2207,8 @@
       "dependencies": [],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 0
     },
     {
       "key": "SW-116",
@@ -2228,8 +2229,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 4,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 4
     },
     {
       "key": "SW-117",
@@ -2247,8 +2248,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 4,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 4
     },
     {
       "key": "SW-118",
@@ -2268,8 +2269,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 8,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 8
     },
     {
       "key": "SW-119",
@@ -2290,8 +2291,8 @@
       ],
       "protected_surface": false,
       "intake_ready": false,
-      "activation_tier": 9,
-      "conflict_group": null
+      "conflict_group": null,
+      "assignment_tier": 9
     },
     {
       "key": "CLI-041",
@@ -2307,8 +2308,8 @@
       "dependencies": [],
       "protected_surface": true,
       "intake_ready": false,
-      "activation_tier": 0,
-      "conflict_group": "ci/ci"
+      "conflict_group": "ci/ci",
+      "assignment_tier": 0
     }
   ]
 }
