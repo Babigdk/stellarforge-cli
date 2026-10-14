@@ -28,11 +28,12 @@ The `Stellar Wave` label remains absent from every candidate. Activation is susp
 - Unresolved internal `SW-*` dependencies: **0**
 - Dependency cycles: **0**
 - Protected-surface candidates: **10**
+- Candidates currently marked `intake: ready`: **16**
 - Machine-readable source of truth: [`drips-wave-activation-manifest.json`](./drips-wave-activation-manifest.json)
 
 ## Dependency sequencing
 
-Tier 0 contains dependency-free work. A later tier must not be activated until its listed dependencies in earlier tiers are complete.
+All 120 candidates belong to the Wave once activation is authorized. Tier 0 contains dependency-free work; contributor applications should be accepted and assigned for a later tier only after its listed dependencies in earlier tiers are complete.
 
 | Tier | Issues |
 | ---: | ---: |
@@ -51,7 +52,7 @@ Initial dependency-free candidates (36):
 
 #96 (SW-001), #97 (SW-002), #98 (SW-003), #99 (SW-004), #100 (SW-005), #101 (SW-006), #102 (SW-007), #103 (SW-008), #104 (SW-009), #105 (SW-010), #106 (SW-011), #107 (SW-012), #108 (SW-013), #109 (SW-014), #110 (SW-019), #111 (SW-020), #112 (SW-015), #113 (SW-016), #114 (SW-017), #115 (SW-018), #118 (SW-056), #119 (SW-066), #120 (SW-104), #121 (SW-105), #122 (SW-107), #123 (SW-109), #124 (SW-114), #158 (SW-057), #159 (SW-058), #160 (SW-059), #164 (SW-063), #167 (SW-067), #168 (SW-068), #205 (SW-108), #210 (SW-115), #235 (CLI-041)
 
-The manifest records the exact tier and dependency list for every candidate.
+The manifest records the exact assignment tier and dependency list for every candidate. Tiering controls work acceptance and assignment, not inclusion in the Wave.
 
 ## Protected-surface conflict control
 
@@ -73,7 +74,7 @@ This is a conservative proxy based on workstream and area because issue bodies d
 2. Re-run the manifest audit against live issue state.
 3. Confirm the 25,000-point allocation has not changed.
 4. Apply `Stellar Wave` only after explicit maintainer authorization.
-5. Prefer Tier 0 first; do not present dependency-blocked issues as immediately actionable.
+5. Register all 120 approved candidates, but accept and assign `intake: ready` Tier 0 work first; do not assign dependency-blocked work early.
 6. Accept applications through Drips, then mirror the accepted contributor as the GitHub assignee.
 7. Keep one active issue per contributor unless a maintainer records an exception.
 8. Merge only after exact-head required checks and human approval.
