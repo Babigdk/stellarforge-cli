@@ -58,4 +58,6 @@ npm ci
 npm test
 ```
 
+`npm run test:e2e` builds and exercises the compiled CLI with temporary project directories and a fake Stellar executable; it does not contact live services. `npm run benchmark:doctor` runs five baseline samples and a timeout scenario with temporary fake PATH executables. It reports min/median/max timings without machine-dependent pass thresholds and requires a POSIX environment.
+
 Before opening a pull request, run the full local validation set documented in the installation and contribution guides.

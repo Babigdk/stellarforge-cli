@@ -2,21 +2,23 @@
 
 StellarForge CLI uses Semantic Versioning, Changesets, npm Trusted Publishing, and GitHub Releases.
 
-## Safety state before the first supported publication
+## Workflow and external controls
 
-Release automation is intentionally merged in a non-publishing state. The workflow can create release PRs and validate/pack release artifacts, but the npm publish job runs only when **all** of these controls are in place:
+Workflow code creates release PRs and validates/packs artifacts. Its publish job requests OIDC only in the `npm-release` environment and runs only when the repository variable `NPM_PUBLISH_ENABLED` is exactly `true`.
+
+The following prerequisites are configured administratively outside the repository workflow:
 
 1. the `@diginodes/stellarforge-cli` npm scope/package is owned by the StellarForge maintainers through the `diginodes` npm organization;
-2. npm Trusted Publishing is configured for:
+2. npm Trusted Publishing is bound to:
    - GitHub organization: `DigiNodes`
    - repository: `stellarforge-cli`
    - workflow filename: `release.yml`
    - environment: `npm-release`
    - direct `npm publish` is allowed;
 3. the GitHub `npm-release` environment exists and requires maintainer approval;
-4. the repository variable `NPM_PUBLISH_ENABLED` is set to `true`.
+4. a maintainer sets the repository variable `NPM_PUBLISH_ENABLED` to `true` for an approved release window.
 
-The first three controls are configured. `NPM_PUBLISH_ENABLED` deliberately remains `false`, so release artifacts are built, tested, inspected, and packed while publication stops at the protected gate.
+The first three prerequisites are configured. `NPM_PUBLISH_ENABLED` deliberately remains `false`, so release artifacts are built, tested, inspected, and packed while publication stops at the protected gate. The workflow does not create the npm Trusted Publisher, GitHub environment reviewers, or repository variable.
 
 No long-lived `NPM_TOKEN` is used.
 

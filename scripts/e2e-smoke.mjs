@@ -13,11 +13,11 @@ import process from 'node:process';
 import { delimiter, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const cliCommand = process.platform === 'win32' ? 'stellarforge.cmd' : 'stellarforge';
 const repositoryRoot = process.cwd();
+const cliPath = join(repositoryRoot, 'dist', 'cli.js');
 
 function runCli(args, cwd, env = process.env) {
-  return spawnSync(cliCommand, args, {
+  return spawnSync(process.execPath, [cliPath, ...args], {
     cwd,
     env,
     encoding: 'utf8',
@@ -29,6 +29,7 @@ function runCli(args, cwd, env = process.env) {
 function expectSuccessful(result, label) {
   assert.equal(result.error, undefined, `${label}: ${result.error?.message ?? ''}`);
   assert.equal(result.status, 0, `${label}: ${result.stderr}`);
+  assert.equal(result.stderr, '', `${label} wrote unexpected stderr`);
 }
 
 const root = mkdtempSync(join(tmpdir(), 'stellarforge-e2e-'));
@@ -47,9 +48,20 @@ try {
 
   const doctor = runCli(['doctor'], root);
   assert.equal(doctor.error, undefined, doctor.error?.message);
-  assert.ok([0, 5].includes(doctor.status));
-  assert.match(doctor.stdout, /Summary:/);
-  assert.doesNotMatch(doctor.stdout, /SECRET_/);
+  assert.equal(doctor.stderr, '');
+  const failedChecks = Number(
+    doctor.stdout.match(/Summary: \d+ passed, \d+ warnings, (\d+) failed\./)?.[1],
+  );
+  assert.ok(Number.isInteger(failedChecks), 'doctor summary is missing');
+  assert.equal(doctor.status, failedChecks > 0 ? 5 : 0);
+  for (const tool of ['Node.js', 'npm', 'Git', 'Rust', 'Cargo', 'Stellar CLI', 'Docker']) {
+    assert.ok(doctor.stdout.includes(`] ${tool}:`), `doctor omitted ${tool}`);
+  }
+  assert.match(
+    doctor.stdout,
+    /Overall health: (ready|usable with warnings|action required)\./,
+  );
+  assert.doesNotMatch(doctor.stdout, /SECRET|TOKEN|PRIVATE KEY/i);
 
   const createBasic = runCli(
     ['new', 'smoke-basic', '--template', 'basic-app'],
