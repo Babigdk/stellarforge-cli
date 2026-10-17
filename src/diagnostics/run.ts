@@ -35,16 +35,27 @@ function summarize(results: readonly DiagnosticResult[]): DiagnosticSummary {
   };
 }
 
+/**
+ * Runs diagnostic checks sequentially and returns results in registration
+ * order. Ordering is part of the doctor output contract: results are never
+ * sorted by status, label, or completion time, and a check that throws keeps
+ * its original position as a failed result.
+ */
 export function runDiagnostics(
   checks: readonly DiagnosticCheck[],
 ): DiagnosticReport {
-  const results = checks.map((check) => {
+  // Snapshot the registration order so a caller mutating its own array while
+  // checks run cannot reorder, skip, or duplicate results.
+  const registered = [...checks];
+  const results: DiagnosticResult[] = [];
+
+  for (const check of registered) {
     try {
-      return check.run();
+      results.push(check.run());
     } catch {
-      return failedCheckResult(check);
+      results.push(failedCheckResult(check));
     }
-  });
+  }
 
   return {
     results,
