@@ -13,3 +13,18 @@ export {
   withTempDirectory,
   type TempDirectoryFixture,
 } from './temp-directory.js';
+export {
+  commanderCode,
+  runRootCommand,
+  type RootCommandRun,
+} from './root-command.js';
+export { FakeChildProcess } from './fake-child.js';
+export {
+  MNEMONIC_FIXTURE,
+  PASSWORD_FIXTURE,
+  SECOND_SECRET_STRKEY_FIXTURE,
+  SECRET_FIXTURE_LINES,
+  SECRET_FIXTURE_VALUES,
+  SECRET_STRKEY_FIXTURE,
+  TOKEN_FIXTURE,
+} from './secret-fixtures.js';

@@ -1,3 +1,4 @@
+export { redactSecretLikeText, REDACTED_PLACEHOLDER } from './redaction.js';
 export {
   sanitizeTerminalText,
   TerminalOutput,

@@ -1,11 +1,13 @@
 import { spawn } from 'node:child_process';
 import { SubprocessCliError, ValidationCliError } from '../errors/errors.js';
+import { redactSecretLikeText } from '../output/redaction.js';
 import { TerminalOutput } from '../output/terminal.js';
 import { buildSafeChildEnvironment } from './environment.js';
 import type { DevProcessSpec } from './project.js';
 
 interface ManagedStream {
   on(event: 'data', listener: (chunk: Buffer | string) => void): unknown;
+  on(event: 'end', listener: () => void): unknown;
 }
 
 export interface ManagedChildProcess {
@@ -48,24 +50,54 @@ function defaultSpawnProcess(
   }) as unknown as ManagedChildProcess;
 }
 
-function writePrefixedLines(
+const MAX_BUFFERED_LINE_LENGTH = 64 * 1024;
+
+interface PrefixedLineWriter {
+  write(chunk: Buffer | string): void;
+  flush(): void;
+}
+
+// Child output is untrusted: buffer partial lines so secret-like values split
+// across chunks are still redacted as a whole before reaching the terminal.
+function createPrefixedLineWriter(
   output: TerminalOutput,
   label: string,
-  chunk: Buffer | string,
   isError: boolean,
-): void {
-  for (const line of String(chunk).split(/\r?\n/)) {
+): PrefixedLineWriter {
+  let pending = '';
+
+  const emit = (line: string): void => {
     if (line.length === 0) {
-      continue;
+      return;
     }
 
-    const message = `[${label}] ${line}`;
+    const message = `[${label}] ${redactSecretLikeText(line)}`;
     if (isError) {
       output.warning(message);
     } else {
       output.info(message);
     }
-  }
+  };
+
+  return {
+    write(chunk) {
+      const lines = `${pending}${String(chunk)}`.split(/\r?\n/);
+      pending = lines.pop() ?? '';
+
+      for (const line of lines) {
+        emit(line);
+      }
+
+      if (pending.length > MAX_BUFFERED_LINE_LENGTH) {
+        emit(pending);
+        pending = '';
+      }
+    },
+    flush() {
+      emit(pending);
+      pending = '';
+    },
+  };
 }
 
 export async function superviseDevProcesses(
@@ -136,16 +168,26 @@ export async function superviseDevProcesses(
         }
 
         children.push(child);
-        child.stdout.on('data', (chunk) =>
-          writePrefixedLines(output, spec.label, chunk, false),
+        const stdoutWriter = createPrefixedLineWriter(
+          output,
+          spec.label,
+          false,
         );
-        child.stderr.on('data', (chunk) =>
-          writePrefixedLines(output, spec.label, chunk, true),
-        );
+        const stderrWriter = createPrefixedLineWriter(output, spec.label, true);
+        const flushOutput = (): void => {
+          stdoutWriter.flush();
+          stderrWriter.flush();
+        };
+        child.stdout.on('data', (chunk) => stdoutWriter.write(chunk));
+        child.stdout.on('end', () => stdoutWriter.flush());
+        child.stderr.on('data', (chunk) => stderrWriter.write(chunk));
+        child.stderr.on('end', () => stderrWriter.flush());
         child.once('error', (error) => {
+          flushOutput();
           fail(`Development process '${spec.label}' failed to start.`, error);
         });
         child.once('exit', (code, signal) => {
+          flushOutput();
           remaining -= 1;
 
           if (!shuttingDown && code !== 0) {
