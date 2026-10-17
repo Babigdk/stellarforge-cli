@@ -45,6 +45,16 @@ Checks run weekly. Compatible minor and patch updates are grouped to reduce pull
 
 Dependabot pull requests must pass the same CI/security checks as contributor pull requests and remain subject to maintainer review. No auto-merge policy is enabled by this configuration.
 
+### Node.js type definitions and the supported runtime
+
+The package engine range is `Node.js >=22.13.0 <25`. The `@types/node` development dependency is intentionally pinned to the **current supported Node 22 type line** rather than the newest available major.
+
+Type definitions describe which Node.js APIs are available. Compiling against the types for the **oldest supported Node major** means the compiler rejects APIs that do not exist in that runtime. If development instead compiled against a newer major's types, code could pass typechecking and CI while still crashing for users on the engine floor (Node 22.13.0). Pinning to the floor is therefore the conservative choice that protects compatibility across the whole supported range.
+
+To keep that guarantee stable, Dependabot ignores **major** updates for `@types/node` (`update-types: version-update:semver-major`). Compatible minor and patch updates within the Node 22 type line remain eligible. This prevents Dependabot from reintroducing a Node type major outside the supported runtime range while the engine range is unchanged.
+
+If the engine floor or range is ever changed, revisit both the `@types/node` pin and this Dependabot ignore rule together so the type line continues to track the oldest supported major.
+
 ## Updates
 
 Prefer small, reviewable dependency updates. Major upgrades should document compatibility impact and include relevant tests. When an urgent security update conflicts with normal grouping or cadence, prioritize the security fix in a focused pull request rather than waiting for the next scheduled version-update run.
