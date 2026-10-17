@@ -63,3 +63,5 @@ The file must:
 - contain only supported schema fields.
 
 Validation failures are designed to be actionable without echoing raw file contents or sensitive values.
+
+If the file is rejected, see [Troubleshooting](troubleshooting.md#configuration-file-is-rejected). For deployment settings, see [Deployment network is required](troubleshooting.md#deployment-network-is-required) and [Deployment identity is rejected](troubleshooting.md#deployment-identity-is-rejected).

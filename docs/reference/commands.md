@@ -15,7 +15,7 @@ This reference documents the implemented StellarForge CLI MVP command surface.
 | `stellarforge deploy` | Deploy a supported smart-contract project to Stellar Testnet | Implemented |
 | `stellarforge add` | Add modules/plugins | Not implemented / post-v1 candidate |
 
-See also [Installation](../guides/installation.md), [Quick Start](../guides/quick-start.md), [Configuration](configuration.md), [Exit Codes](exit-codes.md), [Troubleshooting](troubleshooting.md), and the repository [security guidance](../../SECURITY.md).
+See also [Installation](../guides/installation.md), [Quick Start](../guides/quick-start.md), [Configuration](configuration.md), [Exit Codes](exit-codes.md), [Troubleshooting](troubleshooting.md#find-your-problem), [Platform Support](platform-support.md), and the repository [security guidance](../../SECURITY.md).
 
 ## Global command behavior
 
@@ -83,6 +83,8 @@ See [Template Generation Safety](template-generation.md).
 
 These are validation failures and exit with code `2`.
 
+See [Troubleshooting](troubleshooting.md#stellarforge-new-cannot-create-the-project) and [Project name is rejected](troubleshooting.md#project-name-is-rejected).
+
 ## `stellarforge doctor`
 
 Runs the registered development-environment diagnostics.
@@ -105,6 +107,8 @@ The report renders each result, remediation guidance when available, a summary, 
 Warnings do not by themselves make the command fail.
 
 The command does not print complete sensitive environment values.
+
+See [Troubleshooting](troubleshooting.md#stellarforge-doctor-reports-failures) when diagnostics fail.
 
 ## `stellarforge dev`
 
@@ -137,6 +141,8 @@ Child stdout/stderr are streamed with process labels.
 
 Validation failures use code `2`; failed child processes use code `3`.
 
+See [Troubleshooting](troubleshooting.md#stellarforge-dev-says-no-supported-script-exists).
+
 ## `stellarforge test`
 
 Runs the supported project test workflow.
@@ -162,6 +168,8 @@ StellarForge does not execute package script text directly. It delegates through
 - `0` — test workflow completed successfully;
 - `2` — project/test configuration is unsupported or invalid;
 - `3` — the test subprocess fails.
+
+See [Troubleshooting](troubleshooting.md#stellarforge-test-cannot-find-a-workflow).
 
 ## `stellarforge deploy`
 
@@ -222,7 +230,7 @@ No shell interpolation is used. Signing material remains under Stellar CLI ident
 - `2` — configuration, project layout, network, or identity input is invalid;
 - `3` — Stellar CLI fails to start or returns a failure.
 
-See [Configuration](configuration.md) and [Troubleshooting](troubleshooting.md).
+See [Configuration](configuration.md) and the deployment sections of [Troubleshooting](troubleshooting.md#deployment-network-is-required): [network required](troubleshooting.md#deployment-network-is-required), [Mainnet or Futurenet rejection](troubleshooting.md#deployment-rejects-mainnet-or-futurenet), [identity rejected](troubleshooting.md#deployment-identity-is-rejected), and [Stellar CLI deployment fails](troubleshooting.md#stellar-cli-deployment-fails).
 
 ## Unsupported or planned behavior
 

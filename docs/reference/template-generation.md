@@ -17,3 +17,5 @@ StellarForge generates projects from project-controlled template directories onl
 If validation, copying, or substitution fails before promotion, the staging directory is removed and the final destination is left untouched. Existing non-empty destinations are never overwritten. An existing empty destination may be used, and if promotion fails after that empty directory is removed, StellarForge recreates the empty destination before returning the error.
 
 This model deliberately favors conservative failure over partial generation or implicit overwrite behavior.
+
+If generation is refused, see [Troubleshooting](troubleshooting.md#stellarforge-new-cannot-create-the-project) and [Project name is rejected](troubleshooting.md#project-name-is-rejected).

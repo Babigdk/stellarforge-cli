@@ -15,6 +15,17 @@ StellarForge CLI uses predictable process exit codes so humans, scripts, and CI 
 
 These values are part of the CLI contract and should not be changed casually. New stable categories require deliberate review and documentation.
 
+## Troubleshooting by Exit Code
+
+| Exit code | Start here |
+|---:|---|
+| `2` | [Usage](troubleshooting.md#command-or-option-is-not-recognized), [`new`](troubleshooting.md#stellarforge-new-cannot-create-the-project), [project name](troubleshooting.md#project-name-is-rejected), [configuration](troubleshooting.md#configuration-file-is-rejected), [deployment network](troubleshooting.md#deployment-network-is-required), or [deployment identity](troubleshooting.md#deployment-identity-is-rejected) |
+| `3` | [`dev`](troubleshooting.md#stellarforge-dev-says-no-supported-script-exists), [`test`](troubleshooting.md#stellarforge-test-cannot-find-a-workflow), or [Stellar CLI deployment](troubleshooting.md#stellar-cli-deployment-fails) |
+| `5` | [`doctor`](troubleshooting.md#stellarforge-doctor-reports-failures) |
+| `1` or `4` | [Unexpected or internal failure](troubleshooting.md#unexpected-or-internal-failure) |
+
+The full index is at [Troubleshooting](troubleshooting.md#find-your-problem).
+
 ## Rendering Rules
 
 - user-facing failures are written to stderr unless a command intentionally renders a structured report to stdout;
