@@ -1,0 +1,10 @@
+name: Release BAD OIDC
+on: push
+permissions: {}
+jobs:
+  random-job:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - run: echo bad
