@@ -17,6 +17,14 @@ A changeset is normally not required for documentation-only work, tests that do 
 
 These rules follow `docs/adr/ADR-0003-release-and-versioning-strategy.md`.
 
+## Examples (SW-108)
+
+- **Feature** — adding a new `stellarforge doctor --fix` flag is user-visible, so include a changeset with `minor` impact and a summary like "Add `--fix` to `doctor` for automatic remediation."
+- **Fix** — correcting a wrong exit code on a failed deploy is user-visible, so include a changeset with `patch` impact and a summary like "Fix `deploy` returning exit code 0 on failure."
+- **Docs** — editing this file or `README.md` does not change shipped behavior, so no changeset is needed.
+
+The package remains `private: false` with public `publishConfig.access`, but as noted above that metadata alone does not trigger publication; see "Protected Publishing" below.
+
 ## Create a Changeset
 
 From the repository root, run:
