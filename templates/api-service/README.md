@@ -6,7 +6,7 @@ Minimal StellarForge API service starter for backend services that need clear St
 
 - Node.js 22.13 or newer
 
-The starter has no runtime dependencies. It uses Node's built-in HTTP server and test runner.
+The starter has no runtime dependencies. It uses Node's built-in HTTP server and test runner, so there is no separate install step; `npm start`, `npm run check`, and `npm test` run directly. On Windows, copy the example file with `copy .env.example .env`.
 
 ## Start
 

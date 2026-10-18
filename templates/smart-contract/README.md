@@ -55,3 +55,5 @@ stellar contract invoke \
 ```
 
 Do not commit private keys, secret seeds, signing credentials, or production deployment material. Use locally managed Stellar identities or your approved secret-management workflow.
+
+This starter targets Stellar Testnet only; it does not configure or claim Mainnet or hosted deployment support.
