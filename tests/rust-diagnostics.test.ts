@@ -66,6 +66,31 @@ describe('Rust diagnostic', () => {
     expect(diagnostic.status).toBe('fail');
     expect(diagnostic.message).toBe('Rust returned an unrecognized version.');
   });
+
+  it.each([
+    ['empty output', result(0, '')],
+    ['missing release segment', result(0, 'rustc 1.84\n')],
+    ['non-numeric version', result(0, 'rustc a.b.c\n')],
+    ['binary garbage', result(0, '\u0000\u0001rustc ?\n')],
+    ['no version prefix', result(0, '1.84.0\n')],
+  ])('rejects malformed rustc fixture: %s', (_label, outcome) => {
+    const execute: RunCommand = () => outcome;
+
+    const diagnostic = createRustDiagnostic(execute).run();
+
+    expect(diagnostic.status).toBe('fail');
+    expect(JSON.stringify(diagnostic)).not.toContain('\u0000');
+  });
+
+  it('accepts newline-terminated rustc version with trailing metadata', () => {
+    const execute: RunCommand = () =>
+      result(0, 'rustc 1.85.0-nightly (abc1234 2025-02-01)\n');
+
+    const diagnostic = createRustDiagnostic(execute).run();
+
+    expect(diagnostic.status).toBe('pass');
+    expect(diagnostic.message).toContain('1.85.0');
+  });
 });
 
 describe('Cargo diagnostic', () => {
@@ -95,6 +120,19 @@ describe('Cargo diagnostic', () => {
 
   it('fails malformed Cargo output', () => {
     const execute: RunCommand = () => result(0, 'cargo unknown\n');
+
+    const diagnostic = createCargoDiagnostic(execute).run();
+
+    expect(diagnostic.status).toBe('fail');
+    expect(diagnostic.message).toBe('Cargo returned an unrecognized version.');
+  });
+
+  it.each([
+    ['empty output', result(0, '')],
+    ['missing release segment', result(0, 'cargo 1.89\n')],
+    ['no version prefix', result(0, '1.89.0 (c24e10642 2025-06-23)\n')],
+  ])('rejects malformed cargo fixture: %s', (_label, outcome) => {
+    const execute: RunCommand = () => outcome;
 
     const diagnostic = createCargoDiagnostic(execute).run();
 

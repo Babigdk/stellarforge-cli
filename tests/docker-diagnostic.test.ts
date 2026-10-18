@@ -107,4 +107,26 @@ describe('Docker diagnostic', () => {
     expect(diagnostic.status).toBe('warn');
     expect(diagnostic.message).toContain('unrecognized client version');
   });
+
+  it.each([
+    ['daemon exit error', result(1, '', 'daemon unreachable')],
+    ['whitespace-only daemon output', result(0, '   \n')],
+    ['daemon execution error object', result(null, '', '', new Error('EPIPE'))],
+  ])(
+    'classifies daemon failure as unavailable: %s',
+    (_label, daemonOutcome) => {
+      const execute: RunCommand = (_executable, args) => {
+        if (args[0] === '--version') {
+          return result(0, 'Docker version 28.4.0, build abcdef\n');
+        }
+
+        return daemonOutcome;
+      };
+
+      const diagnostic = createDockerDiagnostic({ execute }).run();
+
+      expect(diagnostic.status).toBe('warn');
+      expect(diagnostic.message).toContain('daemon');
+      expect(diagnostic.message).not.toContain('unreachable');
+    });
 });

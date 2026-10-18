@@ -68,4 +68,28 @@ describe('Git diagnostic', () => {
     expect(diagnostic.message).toBe('Git returned an unrecognized version.');
     expect(diagnostic.remediation).toContain('git --version');
   });
+
+  it.each([
+    ['non-zero exit with valid stdout', result(128, 'git version 2.47.1\n')],
+    ['empty stdout', result(0, '')],
+    ['null status without error', result(null, 'git version 2.47.1\n')],
+    ['unexpected prefix', result(0, 'fatal: not a git repository\n')],
+  ])('fails safely for %s', (_label, outcome) => {
+    const execute: RunCommand = () => outcome;
+
+    const diagnostic = createGitDiagnostic(execute).run();
+
+    expect(diagnostic.status).toBe('fail');
+    expect(diagnostic.message).not.toContain('fatal:');
+  });
+
+  it('tolerates surrounding whitespace and newlines in version output', () => {
+    const execute: RunCommand = () =>
+      result(0, '\n   git version 2.43.0  \n\n');
+
+    const diagnostic = createGitDiagnostic(execute).run();
+
+    expect(diagnostic.status).toBe('pass');
+    expect(diagnostic.message).toContain('2.43.0');
+  });
 });
