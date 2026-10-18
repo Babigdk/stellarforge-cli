@@ -1,6 +1,7 @@
 import {
   classifyCommandResult,
   runCommand,
+  type CommandOutcome,
   type RunCommand,
 } from './process.js';
 import type {
@@ -23,6 +24,27 @@ function parseDockerVersion(output: string): string | null {
   return match?.[1] ?? null;
 }
 
+function timeoutMessage(required: boolean): string {
+  return required
+    ? 'Docker is required but the Docker CLI timed out.'
+    : 'Docker CLI timed out; container-based workflows may be unavailable.';
+}
+
+function timeoutRemediation(): string {
+  return 'Check that `docker --version` responds promptly and retry the diagnostic.';
+}
+
+function classifiedMessage(outcome: CommandOutcome): string {
+  switch (outcome) {
+    case 'missing-executable':
+      return 'Docker CLI is not available; container-based workflows may be unavailable.';
+    case 'timed-out':
+      return timeoutMessage(false);
+    default:
+      return 'Docker CLI could not be executed; container-based workflows may be unavailable.';
+  }
+}
+
 export function createDockerDiagnostic(
   options: DockerDiagnosticOptions = {},
 ): DiagnosticCheck {
@@ -34,15 +56,26 @@ export function createDockerDiagnostic(
     label: 'Docker',
     run(): DiagnosticResult {
       const client = execute('docker', ['--version']);
+      const clientOutcome = classifyCommandResult(client);
 
-      if (classifyCommandResult(client) !== 'ok') {
+      if (clientOutcome === 'timed-out') {
+        return {
+          id: 'docker',
+          label: 'Docker',
+          status: unavailableStatus(required),
+          message: timeoutMessage(required),
+          remediation: timeoutRemediation(),
+        };
+      }
+
+      if (clientOutcome !== 'ok') {
         return {
           id: 'docker',
           label: 'Docker',
           status: unavailableStatus(required),
           message: required
             ? 'Docker is required but the Docker CLI is unavailable.'
-            : 'Docker CLI is not available; container-based workflows may be unavailable.',
+            : classifiedMessage(clientOutcome),
           remediation:
             'Install Docker and ensure `docker` is available on PATH if your selected workflow requires containers.',
         };
@@ -66,8 +99,22 @@ export function createDockerDiagnostic(
         '--format',
         '{{.ServerVersion}}',
       ]);
+      const daemonOutcome = classifyCommandResult(daemon);
 
-      if (daemon.error || daemon.status !== 0 || daemon.stdout.trim() === '') {
+      if (daemonOutcome === 'timed-out') {
+        return {
+          id: 'docker',
+          label: 'Docker',
+          status: unavailableStatus(required),
+          message: required
+            ? `Docker ${version} is installed, but the Docker daemon timed out.`
+            : `Docker ${version} is installed, but the daemon timed out; container-based workflows may not run.`,
+          remediation:
+            'Check that `docker info` responds promptly and retry the diagnostic.',
+        };
+      }
+
+      if (daemonOutcome !== 'ok' || daemon.stdout.trim() === '') {
         return {
           id: 'docker',
           label: 'Docker',

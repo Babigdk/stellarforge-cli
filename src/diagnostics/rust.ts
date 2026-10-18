@@ -26,8 +26,20 @@ export function createRustDiagnostic(
     label: 'Rust',
     run(): DiagnosticResult {
       const result = execute('rustc', ['--version']);
+      const outcome = classifyCommandResult(result);
 
-      if (classifyCommandResult(result) !== 'ok') {
+      if (outcome === 'timed-out') {
+        return {
+          id: 'rust',
+          label: 'Rust',
+          status: 'fail',
+          message: 'Rust timed out while reporting its version.',
+          remediation:
+            'Check that `rustc --version` responds promptly and retry the diagnostic.',
+        };
+      }
+
+      if (outcome !== 'ok') {
         return {
           id: 'rust',
           label: 'Rust',
@@ -81,8 +93,20 @@ export function createCargoDiagnostic(
     label: 'Cargo',
     run(): DiagnosticResult {
       const result = execute('cargo', ['--version']);
+      const outcome = classifyCommandResult(result);
 
-      if (classifyCommandResult(result) !== 'ok') {
+      if (outcome === 'timed-out') {
+        return {
+          id: 'cargo',
+          label: 'Cargo',
+          status: 'fail',
+          message: 'Cargo timed out while reporting its version.',
+          remediation:
+            'Check that `cargo --version` responds promptly and retry the diagnostic.',
+        };
+      }
+
+      if (outcome !== 'ok') {
         return {
           id: 'cargo',
           label: 'Cargo',
