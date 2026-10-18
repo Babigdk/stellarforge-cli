@@ -21,6 +21,10 @@ npm run check
 npm test
 ```
 
+## Notes
+
+This template is intended as a minimal starting point for Stellar dApps. For production deployments, configure your own RPC and Horizon endpoints and secure any signing keys appropriately.
+
 ## Network configuration
 
 The starter defaults to Stellar Testnet:
