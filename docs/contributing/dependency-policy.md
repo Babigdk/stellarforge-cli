@@ -41,9 +41,16 @@ Dependency Review is a complement to normal code review. A green dependency-revi
 - npm dependencies from the repository root; and
 - GitHub Actions referenced by workflows.
 
-Checks run weekly. Compatible minor and patch updates are grouped to reduce pull-request noise. Major updates remain separate so compatibility, migration requirements, security impact, and release impact can be reviewed explicitly.
+Both ecosystems are checked **weekly on Mondays in the `Africa/Lagos` timezone** — npm at **08:00** and GitHub Actions at **08:30** — with an **open pull-request limit of 5 each**.
 
-Dependabot pull requests must pass the same CI/security checks as contributor pull requests and remain subject to maintainer review. No auto-merge policy is enabled by this configuration.
+Compatible minor and patch updates are grouped to reduce pull-request noise:
+
+- `npm-minor-and-patch` for npm `minor` and `patch` updates;
+- `github-actions-minor-and-patch` for GitHub Actions `minor` and `patch` updates.
+
+Major updates are intentionally excluded from these groups and remain **separate** so compatibility, migration requirements, security impact, and release impact can be reviewed explicitly.
+
+Dependabot pull requests must pass the same CI/security checks as contributor pull requests and remain subject to maintainer review. **No auto-merge policy is enabled** by this configuration.
 
 ### Node.js type definitions and the supported runtime
 
