@@ -88,8 +88,7 @@ export function createCargoDiagnostic(
           label: 'Cargo',
           status: 'fail',
           message: 'Cargo is unavailable or could not be executed.',
-          remediation:
-            'Install Cargo with the Rust toolchain and ensure `cargo` is available on PATH.',
+          remediation: 'Install Cargo and ensure `cargo` is available on PATH.',
         };
       }
 
@@ -102,7 +101,7 @@ export function createCargoDiagnostic(
           status: 'fail',
           message: 'Cargo returned an unrecognized version.',
           remediation:
-            'Verify `cargo --version` works and reinstall Rust if necessary.',
+            'Verify `cargo --version` works and reinstall Cargo if necessary.',
         };
       }
 
