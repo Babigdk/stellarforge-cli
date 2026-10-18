@@ -74,28 +74,89 @@ describe('project configuration', () => {
       );
     }));
 
-  it('rejects secret-bearing fields without echoing their values', () =>
+  it('rejects unknown top-level fields with generic non-reflective error', () =>
     withTempDirectory((root) => {
-      const secret = 'S-DO-NOT-ECHO-THIS-VALUE';
       writeFileSync(
         join(root, PROJECT_CONFIG_FILENAME),
-        JSON.stringify({
-          version: 1,
-          privateKey: secret,
-        }),
+        JSON.stringify({ version: 1, unknownField: 'value' }),
       );
-
+      expect(() => loadProjectConfig(root)).toThrow(ValidationCliError);
       try {
         loadProjectConfig(root);
-        throw new Error('Expected configuration validation to fail.');
-      } catch (error) {
-        expect(error).toBeInstanceOf(ValidationCliError);
-        expect((error as Error).message).toContain(
-          'must not contain secret material',
-        );
-        expect((error as Error).message).not.toContain(secret);
+      } catch (e) {
+        expect((e as Error).message).not.toContain('unknownField');
+        expect((e as Error).message).not.toContain('value');
       }
     }));
+
+  it('rejects nested/array unexpected values safely', () =>
+    withTempDirectory((root) => {
+      writeFileSync(
+        join(root, PROJECT_CONFIG_FILENAME),
+        JSON.stringify({ version: 1, nested: { bad: 'x' } }),
+      );
+      expect(() => loadProjectConfig(root)).toThrow(ValidationCliError);
+    }));
+
+  it('does not echo secret-looking field values in errors', () =>
+    withTempDirectory((root) => {
+      writeFileSync(
+        join(root, PROJECT_CONFIG_FILENAME),
+        JSON.stringify({ version: 1, password: 's3cr3t' }),
+      );
+      try {
+        loadProjectConfig(root);
+      } catch (e) {
+        expect((e as Error).message).not.toContain('s3cr3t');
+      }
+    }));
+
+  it('schema version remains unchanged (version 1)', () =>
+    withTempDirectory((root) => {
+      writeFileSync(
+        join(root, PROJECT_CONFIG_FILENAME),
+        JSON.stringify({ version: 1, network: 'testnet' }),
+      );
+      const cfg = loadProjectConfig(root);
+      expect(cfg?.version).toBe(1);
+    }));
+
+  it('rejects project-config larger than 64 KiB with predictable error and no content echo', () =>
+    withTempDirectory((root) => {
+      const large = 'x'.repeat(64 * 1024 + 1);
+      writeFileSync(
+        join(root, PROJECT_CONFIG_FILENAME),
+        JSON.stringify({ version: 1, extra: large }),
+      );
+      try {
+        loadProjectConfig(root);
+        throw new Error('Expected failure');
+      } catch (e) {
+        expect(e).toBeInstanceOf(ValidationCliError);
+        expect((e as Error).message).toContain('64 KiB');
+        expect((e as Error).message).not.toContain(large);
+      }
+    }));
+
+  it.each([64 * 1024 - 1, 64 * 1024])(
+    'does not reject a configuration of exactly %i bytes for size',
+    (totalBytes) =>
+      withTempDirectory((root) => {
+        const base = JSON.stringify({ version: 1, padding: '' });
+        const padding = 'x'.repeat(totalBytes - base.length);
+        const content = JSON.stringify({ version: 1, padding });
+        expect(Buffer.byteLength(content)).toBe(totalBytes);
+
+        writeFileSync(join(root, PROJECT_CONFIG_FILENAME), content);
+
+        try {
+          loadProjectConfig(root);
+        } catch (error) {
+          expect((error as Error).message).not.toContain('64 KiB');
+          expect((error as Error).message).toContain('unsupported field');
+        }
+      }),
+  );
 
   it.each([
     'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',

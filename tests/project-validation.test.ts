@@ -47,6 +47,37 @@ describe('project input validation', () => {
       expect(validated.cwd).toBe(resolve('./workspace/..'));
     },
   );
+
+  it.each([
+    '   ',
+    '\t',
+    '\n',
+    '\r\n',
+    '\u00A0',
+    '\u200B',
+    '\u0000',
+    'de mo',
+    'de\tmo',
+    'de\nmo',
+    'demo\u0000',
+    'demo\u200B',
+  ])('rejects ambiguous whitespace/control input %j', (projectName) => {
+    expect(() =>
+      validateProjectInput({ projectName, cwd: '/workspace' }),
+    ).toThrow(ValidationCliError);
+  });
+
+  it.each(['  demo  ', '\tdemo', 'demo\n', 'demo\u00A0'])(
+    'normalizes surrounding whitespace in %j to a single segment',
+    (projectName) => {
+      const validated = validateProjectInput({
+        projectName,
+        cwd: '/workspace',
+      });
+
+      expect(validated.projectName).toBe('demo');
+    },
+  );
 });
 
 describe('project destination planning', () => {
