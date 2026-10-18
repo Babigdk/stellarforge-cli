@@ -110,7 +110,7 @@ export function planProjectDestination(
   if (fileSystem.exists(destination)) {
     if (!fileSystem.isDirectory(destination)) {
       throw new ValidationCliError(
-        `Destination already exists and is not a directory: ${destination}`,
+        `Destination already exists and is not a directory: ${destination}.`,
       );
     }
 
