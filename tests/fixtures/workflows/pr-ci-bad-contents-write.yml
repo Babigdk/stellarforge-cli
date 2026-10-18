@@ -1,0 +1,9 @@
+name: PR CI BAD WRITE
+on: pull_request
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo bad
