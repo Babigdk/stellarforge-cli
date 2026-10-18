@@ -1,6 +1,10 @@
 import { createNpmInvocation } from '../process/npm.js';
 import type { DiagnosticCheck, DiagnosticResult } from './types.js';
-import { runCommand, type RunCommand } from './process.js';
+import {
+  classifyCommandResult,
+  runCommand,
+  type RunCommand,
+} from './process.js';
 import {
   compareVersions,
   isAtLeast,
@@ -71,7 +75,7 @@ export function createNpmDiagnostic(
       const npm = createNpmInvocation(['--version']);
       const result = execute(npm.command, npm.args);
 
-      if (result.error || result.status !== 0) {
+      if (classifyCommandResult(result) !== 'ok') {
         return failure(
           'npm',
           'npm',

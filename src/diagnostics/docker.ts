@@ -1,4 +1,8 @@
-import { runCommand, type RunCommand } from './process.js';
+import {
+  classifyCommandResult,
+  runCommand,
+  type RunCommand,
+} from './process.js';
 import type {
   DiagnosticCheck,
   DiagnosticResult,
@@ -31,7 +35,7 @@ export function createDockerDiagnostic(
     run(): DiagnosticResult {
       const client = execute('docker', ['--version']);
 
-      if (client.error || client.status !== 0) {
+      if (classifyCommandResult(client) !== 'ok') {
         return {
           id: 'docker',
           label: 'Docker',
