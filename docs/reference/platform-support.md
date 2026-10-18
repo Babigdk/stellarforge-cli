@@ -55,3 +55,7 @@ A green platform job validates StellarForge's code and tests on that OS; it does
 A failing Linux, macOS, or Windows matrix job blocks merge/release for changes that affect the supported CLI surface. A failure may be waived only through an explicit project decision that documents the affected platform, reason, user impact, and follow-up plan.
 
 Platform-specific failures must not be hidden with `continue-on-error` in the supported matrix.
+
+## Troubleshooting
+
+For installation and setup failures, see [Troubleshooting](troubleshooting.md#installation-or-setup-fails). Runtime and tool requirements are in [Installation](../guides/installation.md#contributor-prerequisites), and exit codes are defined in [Exit Codes](exit-codes.md).

@@ -150,7 +150,7 @@ See [SECURITY.md](SECURITY.md), the [threat model](docs/architecture/threat-mode
 
 `stellarforge add`, plugin architecture, remote template registries, and Mainnet deployment are **not implemented** and remain post-v1 or separately reviewed candidates.
 
-See [Quick Start](docs/guides/quick-start.md), [Command Reference](docs/reference/commands.md), [Configuration](docs/reference/configuration.md), and [Troubleshooting](docs/reference/troubleshooting.md).
+See [Quick Start](docs/guides/quick-start.md), [Command Reference](docs/reference/commands.md), [Configuration](docs/reference/configuration.md), [Troubleshooting](docs/reference/troubleshooting.md#find-your-problem), [Platform Support](docs/reference/platform-support.md), and [Exit Codes](docs/reference/exit-codes.md).
 
 ---
 

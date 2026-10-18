@@ -83,3 +83,7 @@ The release workflow is designed around:
 The npm namespace, Trusted Publisher, protected GitHub environment, and Dependency Graph are configured. `NPM_PUBLISH_ENABLED` remains `false` as a deliberate kill switch. REL-001 remains open only for the first approved protected OIDC publication and its npm/tag/GitHub Release/provenance verification.
 
 See [Release Process](../contributing/release-process.md) for the complete release contract.
+
+## Troubleshooting
+
+If installation or local setup fails, see [Troubleshooting](../reference/troubleshooting.md#installation-or-setup-fails). Runtime and operating-system expectations are in [Platform Support](../reference/platform-support.md), and exit codes are defined in the [Exit Code Policy](../reference/exit-codes.md).
