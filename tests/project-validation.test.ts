@@ -99,4 +99,44 @@ describe('project destination planning', () => {
         ),
       ).toThrow('is not a directory');
     }));
+  it('treats hidden entries as non-empty (no overwrite)', () =>
+    withTempDirectory((path) => {
+      const destination = join(path, 'demo');
+      mkdirSync(destination);
+      // Dotfile only — still non-empty for destination policy
+      writeFileSync(join(destination, '.gitkeep'), '');
+
+      expect(() =>
+        planProjectDestination(
+          validateProjectInput({ projectName: 'demo', cwd: path }),
+        ),
+      ).toThrow('will not overwrite existing files');
+    }));
+
+  it('treats nested subdirectory content as non-empty (no overwrite)', () =>
+    withTempDirectory((path) => {
+      const destination = join(path, 'demo');
+      mkdirSync(join(destination, 'nested'), { recursive: true });
+      writeFileSync(join(destination, 'nested', 'file.txt'), 'x');
+
+      expect(() =>
+        planProjectDestination(
+          validateProjectInput({ projectName: 'demo', cwd: path }),
+        ),
+      ).toThrow('will not overwrite existing files');
+    }));
+
+  it('allows empty destination and does not require a force flag', () =>
+    withTempDirectory((path) => {
+      const destination = join(path, 'demo');
+      mkdirSync(destination);
+
+      const plan = planProjectDestination(
+        validateProjectInput({ projectName: 'demo', cwd: path }),
+      );
+
+      // Policy: empty existing dir is OK; no force/overwrite API involved
+      expect(plan.destination).toBe(destination);
+      expect(plan.projectName).toBe('demo');
+    }));
 });
