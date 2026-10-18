@@ -23,8 +23,44 @@ export interface DoctorCommandOptions {
   readonly setExitCode?: (code: number) => void;
 }
 
+// Exported bounds for diagnostic text rendering.
+const MAX_LABEL_LENGTH = 80;
+const MAX_MESSAGE_LENGTH = 200;
+const MAX_REMEDIATION_LENGTH = 200;
+
+const SECRET_PATTERNS: readonly RegExp[] = [
+  /\beyJ[A-Za-z0-9_-]{10,}/g,
+  /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
+  /\bghp_[A-Za-z0-9]{10,}/gi,
+  /\bgithub_pat_[A-Za-z0-9_]{10,}/gi,
+  /\bxoxx[A-Za-z0-9]+/gi,
+  /\bAKIA[0-9A-Z]{16,}/g,
+  /\b(?:secret|token|password|api[ke]?|auth)\s*[:=]\s*\S?/gi,
+];
+
+function sanitizeText(value: string, maxLength: number): string {
+  if (!value) {
+    return '';
+  }
+
+  let sanitized = value.replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+  for (const pattern of SECRET_PATTERNS) {
+    sanitized = sanitized.replace(pattern, '[REDACTED]');
+  }
+
+  if (sanitized.length > maxLength) {
+    const ellipsis = '...';
+    sanitized = `${sanitized.slice(0, Math.max(0, maxLength - ellipsis.length))}${ellipsis}`;
+  }
+
+  return sanitized;
+}
+
 function formatResult(result: DiagnosticResult): string {
-  return `[${result.status.toUpperCase()}] ${result.label}: ${result.message}`;
+  const label = sanitizeText(result.label, MAX_LABEL_LENGTH);
+  const message = sanitizeText(result.message, MAX_MESSAGE_LENGTH);
+  return `[${result.status.toUpperCase()}] ${label}: ${message}`;
 }
 
 function formatOverallHealth(summary: DiagnosticSummary): string {
@@ -70,7 +106,11 @@ export function renderDiagnosticReport(
     output.info(formatResult(result));
 
     if (result.remediation) {
-      output.info(`  Remediation: ${result.remediation}`);
+      const remediation = sanitizeText(
+        result.remediation,
+        MAX_REMEDIATION_LENGTH,
+      );
+      output.info(`  Remediation: ${remediation}`);
     }
   }
 

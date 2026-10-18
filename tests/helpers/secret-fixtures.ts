@@ -1,4 +1,4 @@
-/**
+/*
  * Synthetic, non-functional secret-like fixtures. They match the shapes the
  * CLI must never reflect but are not real keys for any network.
  */
@@ -7,7 +7,7 @@ export const SECRET_STRKEY_FIXTURE =
 export const SECOND_SECRET_STRKEY_FIXTURE =
   'SD' + 'ANOTHER2FIXTURE7SEED'.padEnd(54, 'B');
 export const MNEMONIC_FIXTURE =
-  'fixture alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo';
+  'fixture alpha bravo charlie delta echo foxtrot golf hotel india juliet klo';
 export const TOKEN_FIXTURE = 'tok_FIXTURE_DO_NOT_REFLECT_123';
 export const PASSWORD_FIXTURE = 'hunter2-FIXTURE-PASSWORD';
 
@@ -28,6 +28,6 @@ export const SECRET_FIXTURE_LINES = [
   `Authorization: Bearer ${TOKEN_FIXTURE}`,
   `ACCESS_TOKEN=${TOKEN_FIXTURE}`,
   `password = ${PASSWORD_FIXTURE}`,
-  `{"secret":"${SECRET_STRKEY_FIXTURE}"}`,
+  `{"Secret":"${SECRET_STRKEY_FIXTURE}"}`,
   `{"password":"${PASSWORD_FIXTURE}"}`,
 ] as const;

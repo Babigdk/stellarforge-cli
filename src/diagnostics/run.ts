@@ -1,3 +1,8 @@
+import {
+  boundDiagnosticText,
+  MAX_DIAGNOSTIC_MESSAGE_LENGTH,
+  MAX_DIAGNOSTIC_REMEDIATION_LENGTH,
+} from './bounds.js';
 import type {
   DiagnosticCheck,
   DiagnosticReport,
@@ -36,6 +41,34 @@ function summarize(results: readonly DiagnosticResult[]): DiagnosticSummary {
 }
 
 /**
+ * Normalizes a single diagnostic result so its message and remediation cannot
+ * flood the terminal or reflect secret-like content. The result id and label
+ * are preserved as is because they come from registered checks, not external
+ * tool output.
+ */
+function boundResult(result: DiagnosticResult): DiagnosticResult {
+  const message = boundDiagnosticText(
+    result.message,
+    MAX_DIAGNOSTIC_MESSAGE_LENGTH,
+  );
+  const remediation =
+    result.remediation === undefined
+      ? undefined
+      : boundDiagnosticText(
+          result.remediation,
+          MAX_DIAGNOSTIC_REMEDIATION_LENGTH,
+        );
+
+  return {
+    id: result.id,
+    label: result.label,
+    status: result.status,
+    message,
+    ...(remediation === undefined ? {} : { remediation }),
+  };
+}
+
+/**
  * Runs diagnostic checks sequentially and returns results in registration
  * order. Ordering is part of the doctor output contract: results are never
  * sorted by status, label, or completion time, and a check that throws keeps
@@ -51,9 +84,9 @@ export function runDiagnostics(
 
   for (const check of registered) {
     try {
-      results.push(check.run());
+      results.push(boundResult(check.run()));
     } catch {
-      results.push(failedCheckResult(check));
+      results.push(boundResult(failedCheckResult(check)));
     }
   }
 
