@@ -10,6 +10,8 @@ import { isAtLeast, parseNumericVersion } from './version.js';
 // software-version matrix. Keep this compatibility floor explicit and review
 // it when StellarForge changes its supported network/tooling baseline.
 const MINIMUM_STELLAR_CLI = { major: 27, minor: 1, patch: 0 } as const;
+const STELLAR_CLI_INSTALL_URL =
+  'https://developers.stellar.org/docs/tools/cli/install-cli';
 
 function parseStellarVersion(output: string): string | null {
   const value = output.trim();
@@ -35,7 +37,7 @@ export function createStellarDiagnostic(
           status: 'fail',
           message: 'Stellar CLI is unavailable or could not be executed.',
           remediation:
-            'Install the current Stellar CLI and ensure `stellar` is available on PATH. See https://developers.stellar.org/docs/tools/cli/install-cli.',
+            `Install or update the official Stellar CLI (${STELLAR_CLI_INSTALL_URL}), then ensure \`stellar\` is on PATH and \`stellar version --only-version\` reports a version.`,
         };
       }
 
@@ -49,7 +51,7 @@ export function createStellarDiagnostic(
           status: 'fail',
           message: 'Stellar CLI returned an unrecognized version.',
           remediation:
-            'Verify `stellar version --only-version` works and reinstall Stellar CLI if necessary.',
+            `Run \`stellar version --only-version\`; if it does not report a semantic version, reinstall or update the official Stellar CLI (${STELLAR_CLI_INSTALL_URL}).`,
         };
       }
 
@@ -60,7 +62,7 @@ export function createStellarDiagnostic(
           status: 'fail',
           message: `Unsupported Stellar CLI version ${version}.`,
           remediation:
-            'Upgrade to Stellar CLI >=27.1.0 before using StellarForge Stellar workflows.',
+            `Update the official Stellar CLI to >=27.1.0 (${STELLAR_CLI_INSTALL_URL}), then verify \`stellar version --only-version\` reports a supported version.`,
         };
       }
 
