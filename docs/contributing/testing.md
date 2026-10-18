@@ -49,6 +49,28 @@ The default test suite must not require live network access. Tests should not co
 
 Network-facing code should be tested through injected or controlled boundaries whenever possible.
 
+## Performance Benchmarks
+
+`tests/generator-benchmark.test.ts` provides the bounded local benchmark harness for project generation. It measures all four bundled generation paths (`basic-app`, `full-stack`, `smart-contract`, `api-service`) through the same trusted template pipeline used by `stellarforge new`.
+
+The harness is deliberately scoped to template rendering only. It performs no dependency installation, no Git initialization, and no network access, so the reported timings reflect local generator cost rather than registry or install latency. Each timed iteration generates into an isolated temporary directory that is removed afterwards.
+
+The suite reports wall-clock statistics (mean, median, p95, min, max, standard deviation, and coefficient of variation) plus generated file counts and byte totals for each template. Report structure is deterministic: the environment metadata, iteration counts, template ordering, and artifact measurements are stable, so two runs on the same machine can be compared for regressions. Absolute timing is not asserted in CI because it varies by host.
+
+Run just the harness locally:
+
+```bash
+npx vitest run tests/generator-benchmark.test.ts
+```
+
+Deepen the run for a more stable baseline by raising the bounded iteration count through an environment variable:
+
+```bash
+STELLARFORGE_BENCHMARK_ITERATIONS=20 npx vitest run tests/generator-benchmark.test.ts
+```
+
+The iteration count is clamped to a safe maximum so the harness always stays bounded. Capture the printed report as the comparison baseline for later runs on the same platform.
+
 ## Running Tests
 
 From a clean checkout:
