@@ -80,14 +80,40 @@ describe('template generation', () => {
     withTempDirectory((root) => {
       const templateRoot = join(root, 'template');
       mkdirSync(templateRoot);
-      writeFileSync(join(templateRoot, 'good.txt'), 'created first');
-      writeFileSync(join(templateRoot, 'bad.txt'), '{{unsupportedToken}}');
+      writeFileSync(join(templateRoot, 'a-good.txt'), 'created first');
+      writeFileSync(join(templateRoot, 'z-bad.txt'), '{{unsupportedToken}}');
+
+      expect(() =>
+        generateProjectFromTemplate(context(root), { templateRoot }),
+      ).toThrow(
+        "Template contains unsupported substitution token '{{unsupportedToken}}'.",
+      );
+
+      expect(existsSync(join(root, 'demo-app'))).toBe(false);
+      expect(
+        readdirSync(root).filter((name) =>
+          name.startsWith('.stellarforge-demo-app-'),
+        ),
+      ).toEqual([]);
+    }));
+
+  it('preserves pre-existing user content and an empty destination after partial failure', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      const destination = join(root, 'demo-app');
+      const userFile = join(root, 'user-notes.txt');
+      mkdirSync(templateRoot);
+      mkdirSync(destination);
+      writeFileSync(userFile, 'keep this content');
+      writeFileSync(join(templateRoot, 'a-good.txt'), 'created first');
+      writeFileSync(join(templateRoot, 'z-bad.txt'), '{{unsupportedToken}}');
 
       expect(() =>
         generateProjectFromTemplate(context(root), { templateRoot }),
       ).toThrow(ValidationCliError);
 
-      expect(existsSync(join(root, 'demo-app'))).toBe(false);
+      expect(readdirSync(destination)).toEqual([]);
+      expect(readFileSync(userFile, 'utf8')).toBe('keep this content');
       expect(
         readdirSync(root).filter((name) =>
           name.startsWith('.stellarforge-demo-app-'),
