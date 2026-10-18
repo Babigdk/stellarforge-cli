@@ -43,7 +43,11 @@ function formatOverallHealth(summary: DiagnosticSummary): string {
   return 'Overall health: ready.';
 }
 
-function createDefaultDiagnostics(): readonly DiagnosticCheck[] {
+/**
+ * Default doctor checks in their canonical, platform-independent display
+ * order: runtime, source control, Rust toolchain, Stellar CLI, then Docker.
+ */
+export function createDefaultDiagnostics(): readonly DiagnosticCheck[] {
   return [
     ...createRuntimeDiagnostics(),
     createGitDiagnostic(),
