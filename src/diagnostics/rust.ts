@@ -1,4 +1,8 @@
-import { runCommand, type RunCommand } from './process.js';
+import {
+  classifyCommandResult,
+  runCommand,
+  type RunCommand,
+} from './process.js';
 import type { DiagnosticCheck, DiagnosticResult } from './types.js';
 import { isAtLeast, parseNumericVersion } from './version.js';
 
@@ -23,7 +27,7 @@ export function createRustDiagnostic(
     run(): DiagnosticResult {
       const result = execute('rustc', ['--version']);
 
-      if (result.error || result.status !== 0) {
+      if (classifyCommandResult(result) !== 'ok') {
         return {
           id: 'rust',
           label: 'Rust',
@@ -78,7 +82,7 @@ export function createCargoDiagnostic(
     run(): DiagnosticResult {
       const result = execute('cargo', ['--version']);
 
-      if (result.error || result.status !== 0) {
+      if (classifyCommandResult(result) !== 'ok') {
         return {
           id: 'cargo',
           label: 'Cargo',

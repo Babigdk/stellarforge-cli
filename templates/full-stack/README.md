@@ -25,13 +25,23 @@ npm test
 
 These checks are dependency-free and do not require network access.
 
+## Scripts
+
+| Script | Purpose |
+|---|---|
+| `npm run check` | Syntax-checks the frontend and backend entry points. |
+| `npm test` | Runs the frontend and backend test files with the Node.js test runner. |
+| `npm run start:backend` | Starts the backend server. |
+
+The starter has no build step and no runtime dependencies; `frontend/src/app.js` is plain ES module code that a host page or bundler can import.
+
 ## Run the backend
 
 ```bash
 npm run start:backend
 ```
 
-The backend exposes `GET /health` on `127.0.0.1:3000` by default.
+The backend exposes `GET /health` on `127.0.0.1:3000` by default. Set `BACKEND_PORT` to override the port. This starter targets Stellar Testnet only; it does not configure or claim Mainnet or hosted deployment support.
 
 ## Environment
 

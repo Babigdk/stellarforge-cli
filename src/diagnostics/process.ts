@@ -28,3 +28,38 @@ export const runCommand: RunCommand = (executable, args) => {
     ...(result.error === undefined ? {} : { error: result.error }),
   };
 };
+
+export type CommandOutcome = 'ok' | 'missing-executable' | 'failed';
+
+/**
+ * Recognizes the platform-specific ways Node reports that an executable could
+ * not be found, without inspecting or reflecting raw process output.
+ */
+export function isExecutableNotFound(error: unknown): boolean {
+  if (error === null || typeof error !== 'object') {
+    return false;
+  }
+
+  if ((error as { code?: unknown }).code === 'ENOENT') {
+    return true;
+  }
+
+  const message = (error as { message?: unknown }).message;
+  return typeof message === 'string' && /\bENOENT\b/.test(message);
+}
+
+/**
+ * Classifies a command result into a small, shared set of outcomes so every
+ * diagnostic treats a missing executable consistently.
+ */
+export function classifyCommandResult(result: CommandResult): CommandOutcome {
+  if (result.error !== undefined && isExecutableNotFound(result.error)) {
+    return 'missing-executable';
+  }
+
+  if (result.error !== undefined || result.status !== 0) {
+    return 'failed';
+  }
+
+  return 'ok';
+}

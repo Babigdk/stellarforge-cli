@@ -1,4 +1,8 @@
-import { runCommand, type RunCommand } from './process.js';
+import {
+  classifyCommandResult,
+  runCommand,
+  type RunCommand,
+} from './process.js';
 import type { DiagnosticCheck, DiagnosticResult } from './types.js';
 import { isAtLeast, parseNumericVersion } from './version.js';
 
@@ -24,7 +28,7 @@ export function createStellarDiagnostic(
       // version command. It does not inspect identities, keys, or config.
       const result = execute('stellar', ['version', '--only-version']);
 
-      if (result.error || result.status !== 0) {
+      if (classifyCommandResult(result) !== 'ok') {
         return {
           id: 'stellar',
           label: 'Stellar CLI',

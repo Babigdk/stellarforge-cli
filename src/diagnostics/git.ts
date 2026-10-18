@@ -1,4 +1,8 @@
-import { runCommand, type RunCommand } from './process.js';
+import {
+  classifyCommandResult,
+  runCommand,
+  type RunCommand,
+} from './process.js';
 import type { DiagnosticCheck, DiagnosticResult } from './types.js';
 
 function parseGitVersion(output: string): string | null {
@@ -15,7 +19,7 @@ export function createGitDiagnostic(
     run(): DiagnosticResult {
       const result = execute('git', ['--version']);
 
-      if (result.error || result.status !== 0) {
+      if (classifyCommandResult(result) !== 'ok') {
         return {
           id: 'git',
           label: 'Git',
