@@ -10,15 +10,23 @@ Mandatory code-owner approval must be configured separately through the reposito
 
 ## Current Sensitive Areas
 
-The initial ownership boundary covers:
+The ownership boundary covers all frozen protected surfaces defined in `docs/contributing/wave-architecture.md`:
 
 - GitHub Actions workflows and dependency automation;
 - CODEOWNERS itself;
 - Changesets and package/lockfile release metadata;
 - public security policy and dependency/security engineering guidance;
+- the full ADR directory and architecture documents;
+- the v1 readiness roadmap;
+- CLI entry-point, version, and root command modules;
 - threat-model and trust-boundary documents;
 - release/security ADRs;
-- the current CLI error boundary and terminal-output layer.
+- the CLI error boundary and terminal-output layer;
+- project configuration module (`src/config/`);
+- process execution module (`src/process/`);
+- deployment module (`src/deployment/`);
+- generator security-sensitive surfaces: validation, template generation, template registry, and template sources;
+- dev orchestration and environment handling.
 
 These areas can affect execution trust, supply-chain integrity, secret handling, user-visible failure behavior, or future release authority and therefore receive explicit maintainer review.
 
@@ -26,7 +34,16 @@ These areas can affect execution trust, supply-chain integrity, secret handling,
 
 CODEOWNERS does not assign a blanket owner to the whole repository. Ordinary feature modules, tests, general documentation, and contributor-facing work should remain approachable without unnecessary mandatory-owner routing unless their risk profile changes.
 
-As new sensitive modules are introduced—such as deployment, credential handling, remote templates/plugins, filesystem mutation, or package publishing—the CODEOWNERS boundary should be updated in the same pull request or a tightly related security follow-up.
+Specifically, the following remain open contributor zones:
+
+- `tests/` — unit and integration test files;
+- `templates/` — starter template contents (excluding introduction/removal/renaming at the top level);
+- `docs/` general guides, reference docs, and contributing guides (except the protected surfaces listed above);
+- `src/diagnostics/` — diagnostic implementations;
+- `src/testing/` — test-support utilities;
+- `src/commands/` — individual command implementations (except `root.ts`).
+
+As new sensitive modules are introduced—such as credential handling, remote templates/plugins, or package publishing—the CODEOWNERS boundary should be updated in the same pull request or a tightly related security follow-up.
 
 ## Enforcement
 

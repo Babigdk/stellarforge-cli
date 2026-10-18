@@ -19,11 +19,29 @@
 /docs/contributing/security-guidelines.md @dDevAhmed
 /docs/contributing/dependency-policy.md @dDevAhmed
 /docs/contributing/changesets.md @dDevAhmed
-/docs/architecture/threat-model.md @dDevAhmed
-/docs/architecture/trust-boundaries.md @dDevAhmed
-/docs/adr/ADR-0003-release-and-versioning-strategy.md @dDevAhmed
-/docs/adr/ADR-0004-security-baseline.md @dDevAhmed
+/docs/architecture/ @dDevAhmed
+/docs/adr/ @dDevAhmed
+/docs/roadmap/v1-readiness.md @dDevAhmed
 
-# Current CLI failure/output boundaries that protect error and terminal handling
+# CLI entry-point and version surface
+/src/cli.ts @dDevAhmed
+/src/main.ts @dDevAhmed
+/src/version.ts @dDevAhmed
+/src/commands/root.ts @dDevAhmed
+
+# Security and trust boundary modules
 /src/errors/ @dDevAhmed
 /src/output/ @dDevAhmed
+/src/config/ @dDevAhmed
+/src/process/ @dDevAhmed
+/src/deployment/ @dDevAhmed
+
+# Generator security-sensitive surfaces
+/src/generator/validation.ts @dDevAhmed
+/src/generator/template-generation.ts @dDevAhmed
+/src/generator/template-registry.ts @dDevAhmed
+/src/generator/template-sources.ts @dDevAhmed
+
+# Dev orchestration and environment handling
+/src/dev/orchestrator.ts @dDevAhmed
+/src/dev/environment.ts @dDevAhmed
