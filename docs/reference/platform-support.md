@@ -11,7 +11,7 @@ StellarForge CLI treats supported-platform failures as release blockers unless a
 | macOS (GitHub-hosted macOS) | Node.js 22.13+ LTS | Tests and build |
 | Windows (GitHub-hosted Windows) | Node.js 22.13+ LTS | Tests and build |
 
-The package engine range remains `Node.js >=22.13.0 <25`. Node.js 22 and Node.js 24 are the supported LTS majors for the current MVP. Intermediate non-LTS Node releases are not release-validation targets.
+The package engine range remains `Node.js >=22.13.0 <25` and `npm >=10.9.0`, matching `package.json`. Node.js 22 and Node.js 24 are the supported LTS majors for the current MVP. Intermediate non-LTS Node releases are not release-validation targets. These documented ranges mirror the CI matrix and must not be expanded or contracted without a policy review.
 
 ## What the platform matrix exercises
 
