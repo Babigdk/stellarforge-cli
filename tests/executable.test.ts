@@ -86,8 +86,10 @@ describe('StellarForge CLI executable', () => {
     const result = runBuiltCli(['--definitely-unknown']);
 
     expect(result.status).toBe(2);
-    expect(result.stderr).toContain('error: unknown option');
-    expect(result.stderr).toContain('Usage: stellarforge [options]');
+    expect(result.stderr).toContain(
+      "error: unknown option '--definitely-unknown'",
+    );
+    expect(result.stderr).toContain("Run 'stellarforge --help' for usage.");
     expect(result.stderr).not.toContain(
       'StellarForge encountered an unexpected error.',
     );
@@ -97,10 +99,23 @@ describe('StellarForge CLI executable', () => {
     const result = runBuiltCli(['not-a-command']);
 
     expect(result.status).toBe(2);
-    expect(result.stderr).toContain('error:');
-    expect(result.stderr).toContain('Usage: stellarforge [options]');
+    expect(result.stderr).toContain("error: unknown command 'not-a-command'");
+    expect(result.stderr).toContain(
+      'Available commands: doctor, new, dev, test, deploy.',
+    );
     expect(result.stderr).not.toContain(
       'StellarForge encountered an unexpected error.',
+    );
+  });
+
+  it('maps an unknown subcommand option to the validation exit code', () => {
+    const result = runBuiltCli(['deploy', '--bogus']);
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe(
+      "error: unknown option '--bogus'\n" +
+        "Run 'stellarforge deploy --help' for usage.\n",
     );
   });
 });
