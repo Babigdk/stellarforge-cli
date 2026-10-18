@@ -53,8 +53,12 @@ describe('StellarForge CLI executable', () => {
     'runs default doctor checks safely in the CI toolchain',
     () => {
       const result = runBuiltCli(['doctor']);
+      const failedChecks = result.stdout.match(
+        /Summary: \d+ passed, \d+ warnings, (\d+) failed\./,
+      )?.[1];
 
-      expect([0, 5]).toContain(result.status);
+      expect(failedChecks).toBeDefined();
+      expect(result.status).toBe(Number(failedChecks) > 0 ? 5 : 0);
       expect(result.stderr).toBe('');
       expect(result.stdout).toContain('[PASS] Node.js:');
       expect(result.stdout).toContain('[PASS] npm:');
@@ -63,9 +67,6 @@ describe('StellarForge CLI executable', () => {
       expect(result.stdout).toContain('Cargo:');
       expect(result.stdout).toContain('Stellar CLI:');
       expect(result.stdout).toContain('Docker:');
-      expect(result.stdout).toMatch(
-        /Summary: \d+ passed, \d+ warnings, \d+ failed\./,
-      );
     },
     DOCTOR_TEST_TIMEOUT_MS,
   );

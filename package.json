@@ -22,7 +22,8 @@
     "changeset": "changeset",
     "changeset:status": "changeset status",
     "changeset:version": "changeset version",
-    "test:e2e": "node scripts/e2e-smoke.mjs",
+    "test:e2e": "npm run build && node scripts/e2e-smoke.mjs",
+    "benchmark:doctor": "npm run build && node scripts/doctor-benchmark.mjs",
     "release:dry-run": "npm pack --dry-run --json",
     "release:publish": "changeset publish"
   },
