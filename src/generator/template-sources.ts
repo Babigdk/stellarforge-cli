@@ -16,7 +16,7 @@ export function resolveBundledTemplateRoot(templateId: string): string {
 
   if (directory === undefined) {
     throw new ValidationCliError(
-      `Template '${templateId}' is registered but is not bundled in this CLI version yet.`,
+      'The selected template is not available in this CLI version.',
     );
   }
 

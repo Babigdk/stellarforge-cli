@@ -52,7 +52,7 @@ export function getTemplate(templateId: string): TemplateMetadata {
 
   if (!template) {
     throw new ValidationCliError(
-      `Unknown template '${templateId}'. Supported templates: ${TEMPLATE_IDS.join(', ')}.`,
+      `The requested template is not supported. Supported templates: ${TEMPLATE_IDS.join(', ')}.`,
     );
   }
 
