@@ -1,8 +1,10 @@
+
 import {
   boundDiagnosticText,
   MAX_DIAGNOSTIC_MESSAGE_LENGTH,
   MAX_DIAGNOSTIC_REMEDIATION_LENGTH,
 } from './bounds.js';
+
 import type {
   DiagnosticCheck,
   DiagnosticReport,
@@ -10,6 +12,12 @@ import type {
   DiagnosticSummary,
 } from './types.js';
 
+/**
+ * Creates a safe fallback result when a diagnostic check fails unexpectedly.
+ *
+ * Internal exception details are intentionally excluded to prevent sensitive
+ * information from being exposed in terminal output.
+ */
 function failedCheckResult(check: DiagnosticCheck): DiagnosticResult {
   return {
     id: check.id,
@@ -21,73 +29,97 @@ function failedCheckResult(check: DiagnosticCheck): DiagnosticResult {
   };
 }
 
-function summarize(results: readonly DiagnosticResult[]): DiagnosticSummary {
-  let pass = 0;
-  let warn = 0;
-  let fail = 0;
-
-  for (const result of results) {
-    if (result.status === 'pass') pass += 1;
-    if (result.status === 'warn') warn += 1;
-    if (result.status === 'fail') fail += 1;
-  }
-
-  return {
-    pass,
-    warn,
-    fail,
+/**
+ * Calculates diagnostic totals from the completed results.
+ *
+ * @param results - Diagnostic results to summarize.
+ * @returns Counts of passed, warned, and failed checks.
+ */
+function summarize(
+  results: readonly DiagnosticResult[],
+): DiagnosticSummary {
+  const summary: DiagnosticSummary = {
+    pass: 0,
+    warn: 0,
+    fail: 0,
     total: results.length,
   };
+
+  for (const result of results) {
+    switch (result.status) {
+      case 'pass':
+        summary.pass += 1;
+        break;
+
+      case 'warn':
+        summary.warn += 1;
+        break;
+
+      case 'fail':
+        summary.fail += 1;
+        break;
+    }
+  }
+
+  return summary;
 }
 
 /**
- * Normalizes a single diagnostic result so its message and remediation cannot
- * flood the terminal or reflect secret-like content. The result id and label
- * are preserved as is because they come from registered checks, not external
- * tool output.
+ * Normalizes a diagnostic result by bounding its message and remediation text.
+ *
+ * Result identifiers and labels are preserved because they originate from
+ * registered diagnostic checks rather than external tool output.
+ *
+ * @param result - Diagnostic result to normalize.
+ * @returns A normalized diagnostic result.
  */
 function boundResult(result: DiagnosticResult): DiagnosticResult {
-  const message = boundDiagnosticText(
-    result.message,
-    MAX_DIAGNOSTIC_MESSAGE_LENGTH,
-  );
-  const remediation =
-    result.remediation === undefined
-      ? undefined
-      : boundDiagnosticText(
-          result.remediation,
-          MAX_DIAGNOSTIC_REMEDIATION_LENGTH,
-        );
-
   return {
-    id: result.id,
-    label: result.label,
-    status: result.status,
-    message,
-    ...(remediation === undefined ? {} : { remediation }),
+    ...result,
+    message: boundDiagnosticText(
+      result.message,
+      MAX_DIAGNOSTIC_MESSAGE_LENGTH,
+    ),
+    ...(result.remediation === undefined
+      ? {}
+      : {
+          remediation: boundDiagnosticText(
+            result.remediation,
+            MAX_DIAGNOSTIC_REMEDIATION_LENGTH,
+          ),
+        }),
   };
 }
 
 /**
- * Runs diagnostic checks sequentially and returns results in registration
- * order. Ordering is part of the doctor output contract: results are never
- * sorted by status, label, or completion time, and a check that throws keeps
- * its original position as a failed result.
+ * Runs registered diagnostic checks sequentially.
+ *
+ * Results preserve registration order regardless of execution time or status.
+ * If a check throws, a safe failure result is generated in its original
+ * position without preventing subsequent checks from executing.
+ *
+ * @param checks - Registered diagnostic checks to execute.
+ * @returns Diagnostic results and their aggregate summary.
  */
 export function runDiagnostics(
   checks: readonly DiagnosticCheck[],
 ): DiagnosticReport {
-  // Snapshot the registration order so a caller mutating its own array while
-  // checks run cannot reorder, skip, or duplicate results.
-  const registered = [...checks];
+  // Snapshot registration order to prevent external array mutations from
+  // affecting the execution sequence.
+  const registeredChecks = [...checks];
+
   const results: DiagnosticResult[] = [];
 
-  for (const check of registered) {
+  for (const check of registeredChecks) {
+    let result: DiagnosticResult;
+
     try {
-      results.push(boundResult(check.run()));
+      result = check.run();
     } catch {
-      results.push(boundResult(failedCheckResult(check)));
+      result = failedCheckResult(check);
     }
+
+    results.push(boundResult(result));
   }
 
   return {
