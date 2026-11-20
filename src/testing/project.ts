@@ -1,8 +1,17 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import {
+  superviseDevProcesses,
+  type DevOrchestratorOptions,
+} from '../dev/orchestrator.js';
 import type { DevProcessSpec } from '../dev/project.js';
-import { ValidationCliError } from '../errors/errors.js';
-import { createNpmInvocation } from '../process/npm.js';
+import { SubprocessCliError, ValidationCliError } from '../errors/errors.js';
+import {
+  classifyNpmInvocationError,
+  createNpmInvocation,
+  isNpmInvocation,
+  npmInvocationRemediation,
+} from '../process/npm.js';
 
 interface ProjectPackage {
   readonly name?: unknown;
@@ -94,4 +103,29 @@ export function resolveTestProcessPlan(cwd: string): readonly DevProcessSpec[] {
   throw new ValidationCliError(
     'No supported StellarForge test workflow was found. Expected a package.json test script or a Cargo.toml workspace.',
   );
+}
+
+export async function superviseTestProcesses(
+  specs: readonly DevProcessSpec[],
+  options: DevOrchestratorOptions = {},
+): Promise<void> {
+  const usesNpm = specs.some(isNpmInvocation);
+
+  try {
+    await superviseDevProcesses(specs, options);
+  } catch (error) {
+    if (!usesNpm || !(error instanceof SubprocessCliError)) {
+      throw error;
+    }
+
+    const failure = classifyNpmInvocationError(error.cause);
+
+    if (failure === undefined) {
+      throw error;
+    }
+
+    throw new SubprocessCliError(npmInvocationRemediation(failure), {
+      cause: error,
+    });
+  }
 }

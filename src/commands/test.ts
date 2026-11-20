@@ -1,11 +1,11 @@
 import { Command } from 'commander';
-import {
-  superviseDevProcesses,
-  type DevOrchestratorOptions,
-} from '../dev/orchestrator.js';
+import type { DevOrchestratorOptions } from '../dev/orchestrator.js';
 import type { DevProcessSpec } from '../dev/project.js';
 import { TerminalOutput } from '../output/terminal.js';
-import { resolveTestProcessPlan } from '../testing/project.js';
+import {
+  resolveTestProcessPlan,
+  superviseTestProcesses,
+} from '../testing/project.js';
 
 export interface TestCommandOptions extends DevOrchestratorOptions {
   readonly cwd?: () => string;
@@ -24,6 +24,6 @@ export function createTestCommand(options: TestCommandOptions = {}): Command {
       output.info(
         `Running ${plan.length} project test workflow${plan.length === 1 ? '' : 's'}.`,
       );
-      await superviseDevProcesses(plan, { ...options, output });
+      await superviseTestProcesses(plan, { ...options, output });
     });
 }

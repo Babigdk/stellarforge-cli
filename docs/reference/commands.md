@@ -169,7 +169,7 @@ A string-valued but empty or whitespace-only `scripts.test` is rejected with exi
 
 When both are present, the Node.js project test workflow is selected first.
 
-StellarForge does not execute package script text directly. It delegates through npm or Cargo and preserves external-process failures.
+StellarForge does not execute package script text directly. It delegates through npm or Cargo and preserves external-process failures. If npm or its supported launcher cannot be started, the failure is reported as a missing/permission-denied runtime prerequisite with the supported versions (`Node.js >=22.13.0 <25`, `npm >=10.9.0`) instead of being reported as a test-script failure. StellarForge never falls back to another package manager or installs tools automatically, and the message does not echo environment values.
 
 ### Exit behavior
 

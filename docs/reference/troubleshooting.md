@@ -123,7 +123,7 @@ A supported test project must have either:
 
 Node.js projects are run through `npm run test`; Cargo projects are run through `cargo test`.
 
-A failing project test is preserved as a subprocess failure instead of being converted to success.
+A failing project test is preserved as a subprocess failure instead of being converted to success. If npm or its launcher is missing or cannot be executed, the error identifies that prerequisite and references the supported `Node.js >=22.13.0 <25` and `npm >=10.9.0` ranges; it does not include environment values. Install a supported runtime and rerun `stellarforge doctor` before retrying.
 
 See the [`test` command reference](commands.md#stellarforge-test).
 
