@@ -3,12 +3,15 @@ import { Buffer } from 'node:buffer';
 import { once } from 'node:events';
 import http from 'node:http';
 import test from 'node:test';
+import { startBackend } from '../src/start.js';
 import {
   BASELINE_SECURITY_HEADERS,
+  BackendConfigurationError,
   createBackendServer,
   createHealthPayload,
   getBackendConfig,
   MAX_REQUEST_BODY_BYTES,
+  validateBackendConfig,
 } from '../src/server.js';
 
 test('uses safe Testnet defaults without secrets', () => {
@@ -425,4 +428,86 @@ test('HTTP server applies baseline security headers on error and traversal respo
   } finally {
     server.close();
   }
+});
+
+test('validates the documented Testnet defaults', () => {
+  const config = getBackendConfig({});
+
+  assert.deepEqual(validateBackendConfig(config), config);
+});
+
+test('rejects missing or malformed port values before startup', () => {
+  for (const value of ['', ' ', 'abc', '3000abc', '0', '-1', '65536', '3.5']) {
+    const config = getBackendConfig({ BACKEND_PORT: value });
+    assert.throws(
+      () => validateBackendConfig(config),
+      (error) =>
+        error instanceof BackendConfigurationError &&
+        /BACKEND_PORT/.test(error.message),
+    );
+  }
+
+  assert.equal(getBackendConfig({ BACKEND_PORT: '3100' }).port, 3100);
+});
+
+test('rejects malformed Stellar endpoints without echoing secret-like values', () => {
+  const secretEndpoint = 'https://user:token@example.test/health';
+  const config = getBackendConfig({
+    STELLAR_HORIZON_URL: secretEndpoint,
+    STELLAR_RPC_URL: 'not-a-url',
+  });
+
+  assert.throws(
+    () => validateBackendConfig(config),
+    (error) => {
+      assert.ok(error instanceof BackendConfigurationError);
+      assert.match(error.message, /STELLAR_HORIZON_URL/);
+      assert.match(error.message, /STELLAR_RPC_URL/);
+      assert.doesNotMatch(error.message, /token|user|example\.test|not-a-url/);
+      return true;
+    },
+  );
+});
+
+test('rejects conflicting network mode and endpoint values', () => {
+  assert.throws(
+    () => validateBackendConfig(getBackendConfig({ STELLAR_NETWORK: 'MAINNET' })),
+    (error) =>
+      error instanceof BackendConfigurationError &&
+      /STELLAR_NETWORK must be TESTNET/.test(error.message),
+  );
+
+  assert.throws(
+    () =>
+      validateBackendConfig(
+        getBackendConfig({
+          STELLAR_HORIZON_URL: 'https://horizon-mainnet.stellar.org',
+        }),
+      ),
+    (error) =>
+      error instanceof BackendConfigurationError &&
+      /non-Testnet Stellar endpoint/.test(error.message),
+  );
+});
+
+test('startup validation runs before any listener is opened', () => {
+  const listened = [];
+  const listen = (server, port) => {
+    listened.push({ server, port });
+    return 'listener';
+  };
+
+  assert.throws(
+    () => startBackend({ BACKEND_PORT: 'not-a-port' }, listen),
+    BackendConfigurationError,
+  );
+  assert.deepEqual(listened, []);
+
+  const started = startBackend({ BACKEND_PORT: '3100' }, listen);
+  assert.equal(started.config.port, 3100);
+  assert.equal(started.listener, 'listener');
+  assert.deepEqual(
+    listened.map((entry) => entry.port),
+    [3100],
+  );
 });

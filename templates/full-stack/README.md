@@ -5,7 +5,7 @@ Generated with the StellarForge `full-stack` template.
 ## Structure
 
 ```text
-frontend/   Browser-facing application boundary and tests
+frontend/   Browser-facing application boundary, starter page, styles, and tests
 backend/    Node.js API/runtime boundary and tests
 contracts/  Soroban contract workspace boundary
 ```
@@ -41,7 +41,9 @@ The starter has no build step and no runtime dependencies; `frontend/src/app.js`
 npm run start:backend
 ```
 
-The backend exposes `GET /health` and static frontend assets (such as `GET /app.js`) on `127.0.0.1:3000` by default. Set `BACKEND_PORT` to override the port. The frontend has no server and no port variable at all.
+The backend exposes `GET /health` and static frontend assets on `127.0.0.1:3000` by default. Open `http://127.0.0.1:3000/index.html` for the generated starter UI, or import `frontend/src/app.js` from your own page. Set `BACKEND_PORT` to override the port. The frontend has no server and no port variable at all.
+
+The starter page checks `GET /health` once on load. Its live status region announces `checking backend`, `backend healthy`, or `backend unavailable` as text, so status is not conveyed by color alone. If the backend is unavailable, activate the **Retry backend status** button to try again; the button is disabled while a request is in flight, and the page never polls automatically.
 
 If the configured port is already in use, startup fails with a raw Node error such as:
 
@@ -92,7 +94,24 @@ Production deployments must implement deployment-specific security controls:
 
 Copy `.env.example` into your preferred local environment-management flow. The example contains public Stellar Testnet endpoints only and no credentials.
 
+Backend startup validates configuration before opening a socket:
+
+- `BACKEND_PORT` is an integer from `1` to `65535` (default `3000`);
+- `STELLAR_NETWORK` must be `TESTNET` (the default);
+- `STELLAR_HORIZON_URL` and `STELLAR_RPC_URL` must be absolute `http`/`https` URLs without embedded credentials (defaults are the public Testnet endpoints) and must not point to a non-Testnet network.
+
+Missing values use the documented Testnet defaults. Missing, malformed, or conflicting values fail with field-specific guidance before any bind, so an invalid configuration never partially starts the server. Error messages do not echo environment values or credentials.
+
 Never commit wallet seeds, secret keys, signing credentials, production tokens, or private infrastructure credentials.
+
+## Accessibility checklist
+
+The generated starter page is dependency-free and intended to be usable with a keyboard and assistive technology:
+
+1. Tab from the beginning of the page; the skip link, status button, and controls receive a visible focus outline.
+2. Activate **Retry backend status** with `Enter` or `Space`; it is disabled while a status request is in flight.
+3. Confirm the screen reader announces heading levels in order (`h1` then `h2`) and announces status changes through the `role="status"` live region.
+4. Confirm the status word (`checking backend`, `backend healthy`, or `backend unavailable`) is visible and not indicated only by color.
 
 ## Contracts
 
