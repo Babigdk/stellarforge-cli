@@ -59,7 +59,7 @@ Resolve it safely by either changing the port or stopping only a process you rec
    - Windows: `netstat -ano | findstr :3000` shows the owning PID; stop it with `taskkill /PID <pid> /T`;
    - macOS/Linux: `lsof -i :3000` shows the owning process; stop it with `kill <pid>`;
    - inspect what the process actually is first — handle only the one you started yourself, for example an earlier instance of this backend;
-   - never kill arbitrary processes that happen to hold the port; avoid task-name kills such as `taskkill /IM node.exe`, broad `pkill` matching, and SIGKILL-style forced termination.
+   - never kill arbitrary processes that happen to hold the port; prefer the owning PID you found above (`taskkill /PID <pid>` or `kill <pid>`) and avoid killing by process name, broad `pkill` matching, or SIGKILL-style forced termination.
 
 The backend never hops ports automatically; it always binds exactly the configured port, which makes collisions visible instead of hiding on a random one. This starter targets Stellar Testnet only; it does not configure or claim Mainnet or hosted deployment support.
 

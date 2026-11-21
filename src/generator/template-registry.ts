@@ -60,7 +60,7 @@ export function getTemplate(templateId: string): TemplateMetadata {
 
   if (!template) {
     throw new ValidationCliError(
-      `The requested template is not supported. Supported templates: ${TEMPLATE_IDS.join(', ')}.`,
+      `The requested template is not supported. Supported templates: ${TEMPLATE_IDS.join(', ')}.\nUsage: stellarforge new <project-name> --template <id>.`,
     );
   }
 

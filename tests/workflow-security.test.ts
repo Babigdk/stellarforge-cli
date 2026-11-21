@@ -2,10 +2,10 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const workflowsDir = join(import.meta.dirname, '..', '.github', 'workflows');
+const workflowsDir = join(import.meta.dirname, '.', '.github', 'workflows');
 
 function usesPullRequestTarget(workflowSource: string): boolean {
-  // Matches the trigger as a mapping key or list entry (`pull_request_target:`
+  // Matches the trigger as a mapping key or a list entry (`pull_request_target:`
   // or `- pull_request_target`), not an incidental mention elsewhere.
   return /(^|\n)\s*(-\s*)?pull_request_target\s*:?/.test(workflowSource);
 }

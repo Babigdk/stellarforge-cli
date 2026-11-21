@@ -137,7 +137,7 @@ stellarforge.config.json
 
 and live at the project root.
 
-It must be a regular non-symlink file, no larger than 64 KiB, and contain valid JSON with schema version `1`, and it must not contain duplicate object keys at any nesting level (escaped-equivalent spellings are treated as the same key).
+It must be a regular non-symlink file, no larger than 64 KiB, encoded as UTF-8 (a single leading UTF-8 byte-order mark is tolerated), and contain valid JSON with schema version `1`, and it must not contain duplicate object keys at any nesting level (escaped-equivalent spellings are treated as the same key).
 
 Supported fields are only:
 

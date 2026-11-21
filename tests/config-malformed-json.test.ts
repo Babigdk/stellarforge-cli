@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -123,7 +123,8 @@ describe('configuration duplicate-key rejection (SW-216)', () => {
 
       expect(() => loadProjectConfig(root)).toThrow(/duplicate key/);
       expect(() => loadProjectConfig(root)).toThrow(ValidationCliError);
-    }));
+    }),
+  );
 
   it('rejects duplicates even when both values are identical', () =>
     withTempDirectory((root) => {
@@ -211,7 +212,11 @@ describe('configuration duplicate-key rejection (SW-216)', () => {
     withTempDirectory((root) => {
       writeFileSync(
         join(root, PROJECT_CONFIG_FILENAME),
-        JSON.stringify({ version: 1, network: 'testnet', identity: 'deployer' }),
+        JSON.stringify({
+          version: 1,
+          network: 'testnet',
+          identity: 'deployer',
+        }),
       );
 
       expect(loadProjectConfig(root)).toEqual({
@@ -219,5 +224,166 @@ describe('configuration duplicate-key rejection (SW-216)', () => {
         network: 'testnet',
         identity: 'deployer',
       });
+    }));
+});
+describe('invalid UTF-8 bytes in the project configuration (SW-218)', () => {
+  const INVALID_UTF8_MESSAGE = 'stellarforge.config.json is not valid UTF-8.';
+
+  it.each([
+    { name: 'stray continuation byte', bytes: [0x80] },
+    { name: 'lone 0xFF lead byte', bytes: [0xff] },
+    {
+      name: 'invalid byte inside an ASCII string',
+      bytes: [
+        0x7b, 0x22, 0x76, 0x22, 0x3a, 0x22, 0x74, 0x65, 0x80, 0x73, 0x74, 0x22,
+        0x7d,
+      ],
+    },
+    {
+      name: 'truncated 3-byte sequence',
+      bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0x22, 0xe2, 0x82],
+    },
+    {
+      name: 'truncated 2-byte sequence',
+      bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0xc3],
+    },
+    {
+      name: 'overlong encoding',
+      bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0xc0, 0xaf],
+    },
+    {
+      name: 'encoded surrogate',
+      bytes: [0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0xed, 0xa0, 0x80],
+    },
+    {
+      name: 'stray continuation among ASCII',
+      bytes: [0x7b, 0x22, 0x41, 0x80, 0x42, 0x22, 0x7d],
+    },
+  ])('rejects %s before JSON parsing', ({ bytes }) =>
+    withTempDirectory((root) => {
+      writeFileSync(join(root, PROJECT_CONFIG_FILENAME), Buffer.from(bytes));
+
+      expect(() => loadProjectConfig(root)).toThrow(INVALID_UTF8_MESSAGE);
+      expect(() => loadProjectConfig(root)).toThrow(ValidationCliError);
+    }),
+  );
+
+  it('keeps the malformed-JSON message stable for UTF-8-valid content', () =>
+    withTempDirectory((root) => {
+      writeFileSync(
+        join(root, PROJECT_CONFIG_FILENAME),
+        Buffer.from([0x7b, 0x22, 0x76, 0x22, 0x3a, 0x20, 0x22, 0x36, 0x22]), // {"v": "6" (truncated)
+      );
+
+      expect(() => loadProjectConfig(root)).toThrow(
+        'stellarforge.config.json is not valid JSON.',
+      );
+    }));
+
+  it('accepts UTF-8-encoded non-ASCII text that reaches the schema layer', () =>
+    withTempDirectory((root) => {
+      writeFileSync(
+        join(root, PROJECT_CONFIG_FILENAME),
+        Buffer.from('{"version": 1, "extra": "héllo wörld"}'),
+      );
+
+      // The schema rejects the unsupported field, proving valid UTF-8 got
+      // past decoding and reached validation rather than failing at it.
+      expect(() => loadProjectConfig(root)).toThrow('unsupported field');
+      expect(() => loadProjectConfig(root)).not.toThrow(INVALID_UTF8_MESSAGE);
+    }));
+
+  it('never echoes the invalid bytes or the file content', () =>
+    withTempDirectory((root) => {
+      const sentinel = 'SENTINEL-UTF8-DO_NOT_REFLECT-0xFF';
+      writeFileSync(
+        join(root, PROJECT_CONFIG_FILENAME),
+        Buffer.from(`{"version": 1, "secret": "${sentinel}"`, 'utf8'),
+      );
+      const bytes = readFileSync(join(root, PROJECT_CONFIG_FILENAME));
+      bytes[12] = 0xff;
+      writeFileSync(join(root, PROJECT_CONFIG_FILENAME), bytes);
+
+      try {
+        loadProjectConfig(root);
+        throw new Error('expected invalid UTF-8 to fail');
+      } catch (error) {
+        const message = (error as Error).message;
+        expect(message).not.toContain('SENTINEL-UTF8');
+        expect(message).not.toContain('ff');
+        expect(message).not.toMatch(/\bposition\b|\bline\b|\bcolumn\b/i);
+      }
+    }));
+});
+describe('UTF-8 BOM handling in the project configuration (SW-217)', () => {
+  it('accepts a configuration with exactly one leading BOM', () =>
+    withTempDirectory((root) => {
+      const bom = Buffer.from([0xef, 0xbb, 0xbf]);
+      writeFileSync(
+        join(root, PROJECT_CONFIG_FILENAME),
+        Buffer.concat([
+          bom,
+          Buffer.from(
+            JSON.stringify({
+              version: 1,
+              network: 'testnet',
+              identity: 'deployer',
+            }),
+            'utf8',
+          ),
+        ]),
+      );
+
+      expect(loadProjectConfig(root)).toEqual({
+        version: 1,
+        network: 'testnet',
+        identity: 'deployer',
+      });
+    }));
+
+  it('keeps a non-BOM configuration unchanged', () =>
+    withTempDirectory((root) => {
+      writeFileSync(
+        join(root, PROJECT_CONFIG_FILENAME),
+        JSON.stringify({ version: 1, network: 'testnet' }),
+      );
+
+      expect(loadProjectConfig(root)).toEqual({
+        version: 1,
+        network: 'testnet',
+      });
+    }));
+
+  it('does not corrupt a BOM-prefixed malformed document', () =>
+    withTempDirectory((root) => {
+      const bom = Buffer.from([0xef, 0xbb, 0xbf]);
+      writeFileSync(
+        join(root, PROJECT_CONFIG_FILENAME),
+        Buffer.concat([bom, Buffer.from('{"version": 1,', 'utf8')]),
+      );
+
+      expect(() => loadProjectConfig(root)).toThrow(
+        'stellarforge.config.json is not valid JSON.',
+      );
+    }));
+
+  it('rejects two leading BOMs with the stable malformed-JSON error', () =>
+    withTempDirectory((root) => {
+      const bom = Buffer.from([0xef, 0xbb, 0xbf]);
+      writeFileSync(
+        join(root, PROJECT_CONFIG_FILENAME),
+        Buffer.concat([
+          bom,
+          bom,
+          Buffer.from(
+            JSON.stringify({ version: 1, network: 'testnet' }),
+            'utf8',
+          ),
+        ]),
+      );
+
+      expect(() => loadProjectConfig(root)).toThrow(
+        'stellarforge.config.json is not valid JSON.',
+      );
     }));
 });

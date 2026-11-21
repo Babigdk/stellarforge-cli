@@ -57,6 +57,34 @@ class DeployChild implements ManagedChildProcess {
 }
 
 describe('deploy command', () => {
+  it('runs preflight without spawning subprocesses or network calls', async () => {
+    const spawnProcess = vi.fn(() => new DeployChild());
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const captured = createCapturedTerminalOutput();
+    const command = createDeployCommand({
+      cwd: () => '/workspace',
+      output: captured.output,
+      resolvePlan: () => [],
+      spawnProcess,
+    });
+
+    await command.parseAsync([
+      'node',
+      'deploy',
+      '--network',
+      'testnet',
+      '--source',
+      'alice',
+      '--preflight',
+    ]);
+
+    expect(spawnProcess).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(captured.stdoutText()).toContain('Preflight');
+    expect(captured.stdoutText()).not.toContain('alice');
+    fetchSpy.mockRestore();
+  });
+
   it('forwards explicit Testnet and identity input to a safe deployment plan', async () => {
     const child = new DeployChild();
     const captured = createCapturedTerminalOutput();

@@ -5,7 +5,10 @@ import { ValidationCliError } from '../src/errors/errors.js';
 import { createNpmInvocation } from '../src/process/npm.js';
 import { createTestCommand } from '../src/commands/test.js';
 import { resolveTestProcessPlan } from '../src/testing/project.js';
-import { createCapturedTerminalOutput, withTempDirectory } from './helpers/index.js';
+import {
+  createCapturedTerminalOutput,
+  withTempDirectory,
+} from './helpers/index.js';
 
 describe('project test workflow resolution', () => {
   it('resolves a Node.js test script without executing package script text directly', () =>

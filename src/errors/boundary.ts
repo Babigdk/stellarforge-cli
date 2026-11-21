@@ -6,6 +6,19 @@ import { CliError, EXIT_CODES, type CliExitCode } from './errors.js';
 const UNEXPECTED_ERROR_MESSAGE =
   'StellarForge encountered an unexpected error.';
 
+// Standardised user-interrupt (SIGINT/Ctrl-C) cancellation message.
+// This is the documented user-facing text for a clean cancellation.
+export const CANCELLATION_MESSAGE = 'Cancelled.';
+
+// Documented message for the forced-exit path taken when a second
+// interrupt signal arrives while cleanup is still in progress.
+export const FORCED_EXIT_MESSAGE =
+  'Received a second interrupt signal; forcing exit.';
+
+// Documented non-zero exit code reported for a clean user-interrupt
+// cancellation. 130 is the conventional 128+SIGINT shell code.
+export const CANCElLATION_EXIT_CODE: CliExitCode = 130;
+
 export interface CliErrorBoundaryOptions {
   // Opt-in diagnostic detail for maintainers: normal user-facing errors stay
   // a clean one-line message, but with this set the underlying stack (or

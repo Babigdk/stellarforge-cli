@@ -147,9 +147,9 @@ jobs:
         run: npm test
 
   cargo-smoke:
-    name: Smart Contract / Cargo metadata
+    name: Smart Contract / Cargo metadata & tests
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -175,3 +175,7 @@ jobs:
       - name: Smoke / smart-contract / cargo metadata
         working-directory: ./smoke-smart-contract
         run: cargo metadata --no-deps --format-version 1
+
+      - name: Smoke / smart-contract / cargo test
+        working-directory: ./smoke-smart-contract
+        run: cargo test

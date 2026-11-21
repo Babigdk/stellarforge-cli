@@ -170,7 +170,7 @@ describe('timeout and process termination', () => {
     expect(classifyCommandResult(result)).toBe('timed-out');
     expect(result.error).toBeDefined();
     expect((result.error as NodeJS.ErrnoException).code).toBe('ETIMEDOUT');
-    
+
     // Verify timeout happened around the expected time
     expect(elapsed).toBeGreaterThanOrEqual(DIAGNOSTIC_COMMAND_TIMEOUT_MS);
     expect(elapsed).toBeLessThan(
@@ -246,7 +246,7 @@ describe('timeout and process termination', () => {
     };
 
     const beforePids = getNodeProcesses();
-    
+
     // Run a timeout scenario
     runCommand('node', [timeoutHelperPath, 'slow']);
 
@@ -270,7 +270,7 @@ describe('timeout and process termination', () => {
     expect(dockerCheck.status).toBe('warn');
     expect(dockerCheck.message).toContain('timed out');
     expect(dockerCheck.remediation).toBeDefined();
-    
+
     // Verify no raw error details leak into user-facing output
     expect(JSON.stringify(dockerCheck)).not.toContain('ETIMEDOUT');
     expect(dockerCheck.message).not.toContain('Error:');
@@ -289,7 +289,7 @@ describe('timeout and process termination', () => {
       result(null, 'Started...', '', etimedout());
 
     const start = Date.now();
-    
+
     // Run multiple diagnostics that all timeout
     const checks = [
       createGitDiagnostic(timedOut).run(),
@@ -302,7 +302,7 @@ describe('timeout and process termination', () => {
 
     // All checks should complete quickly since they're mocked
     expect(elapsed).toBeLessThan(1_000);
-    
+
     // All should report failure/warning status
     for (const check of checks) {
       expect(['fail', 'warn']).toContain(check.status);
@@ -324,7 +324,7 @@ describe('platform-specific process termination', () => {
     }
 
     const result = runCommand('node', [timeoutHelperPath, 'slow']);
-    
+
     expect(classifyCommandResult(result)).toBe('timed-out');
     expect(result.error).toBeDefined();
   });
@@ -335,7 +335,7 @@ describe('platform-specific process termination', () => {
     }
 
     const result = runCommand('node', [timeoutHelperPath, 'slow']);
-    
+
     expect(classifyCommandResult(result)).toBe('timed-out');
     expect(result.error).toBeDefined();
   });

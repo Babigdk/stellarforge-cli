@@ -230,7 +230,7 @@ describe('Docker timeout handling', () => {
 
     expect(timeoutDiag.message).toContain('timed out');
     expect(timeoutDiag.remediation).toContain('responds promptly');
-    
+
     expect(failureDiag.message).toContain('unavailable');
     expect(failureDiag.message).not.toContain('timed out');
     expect(failureDiag.remediation).toContain('Start the Docker daemon');

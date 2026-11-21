@@ -180,6 +180,131 @@ describe('template generation', () => {
     }));
 });
 
+describe('template generation budget limits (SW-199)', () => {
+  it('fails with an aggregate-safe message when the template exceeds the file count', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot, { recursive: true });
+      for (let i = 0; i < 257; i++) {
+        writeFileSync(join(templateRoot, `file-${i}.txt`), 'x');
+      }
+
+      expect(() =>
+        generateProjectFromTemplate(context(root), { templateRoot }),
+      ).toThrow('256-file generation limit');
+
+      // Nothing is written when the budget is exceeded first.
+      expect(existsSync(join(root, 'demo-app'))).toBe(false);
+      expect(
+        readdirSync(root).some((entry) =>
+          entry.startsWith('.stellarforge-demo-app-'),
+        ),
+      ).toBe(false);
+    }));
+
+  it('accepts a template with exactly the maximum file count', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+      for (let i = 0; i < 256; i++) {
+        writeFileSync(join(templateRoot, `file-${i}.txt`), 'x');
+      }
+
+      expect(() =>
+        generateProjectFromTemplate(context(root), { templateRoot }),
+      ).not.toThrow();
+      expect(existsSync(join(root, 'demo-app', 'file-255.txt'))).toBe(true);
+    }));
+
+  it('fails when a single file exceeds the per-file byte limit', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+      writeFileSync(join(templateRoot, 'big.bin'), 'a'.repeat(256 * 1024 + 1));
+
+      expect(() =>
+        generateProjectFromTemplate(context(root), { templateRoot }),
+      ).toThrow('per-file limit');
+      expect(existsSync(join(root, 'demo-app'))).toBe(false);
+    }));
+
+  it('accepts a file at exactly the per-file byte limit', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+      writeFileSync(join(templateRoot, 'big.bin'), 'a'.repeat(256 * 1024));
+
+      expect(() =>
+        generateProjectFromTemplate(context(root), { templateRoot }),
+      ).not.toThrow();
+    }));
+
+  it('fails when the aggregate size exceeds the total byte limit', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot, { recursive: true });
+      // 9 files of 128 KiB comfortably exceed the 1 MiB aggregate limit.
+      for (let i = 0; i < 9; i++) {
+        writeFileSync(
+          join(templateRoot, `chunk-${i}.bin`),
+          'a'.repeat(128 * 1024),
+        );
+      }
+
+      expect(() =>
+        generateProjectFromTemplate(context(root), { templateRoot }),
+      ).toThrow('byte generation limit');
+      expect(existsSync(join(root, 'demo-app'))).toBe(false);
+    }));
+
+  it('accepts a template at exactly the total byte limit', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot, { recursive: true });
+      // 8 files of exactly 128 KiB = 1 MiB exactly.
+      for (let i = 0; i < 8; i++) {
+        writeFileSync(
+          join(templateRoot, `chunk-${i}.bin`),
+          'a'.repeat(128 * 1024),
+        );
+      }
+
+      expect(() =>
+        generateProjectFromTemplate(context(root), { templateRoot }),
+      ).not.toThrow();
+    }));
+
+  it('checks the budget before substitution, even for invalid template content', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+      // A valid but over-budget token set also fails on budget, not on token.
+      writeFileSync(join(templateRoot, 'huge.bin'), 'a'.repeat(256 * 1024 + 1));
+
+      expect(() =>
+        generateProjectFromTemplate(context(root), { templateRoot }),
+      ).toThrow('per-file limit');
+    }));
+
+  it('never exposes the absolute template path in budget error messages', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot, { recursive: true });
+      for (let i = 0; i < 257; i++) {
+        writeFileSync(join(templateRoot, `file-${i}.txt`), 'x');
+      }
+
+      try {
+        generateProjectFromTemplate(context(root), { templateRoot });
+        throw new Error('expected budget rejection');
+      } catch (error) {
+        const message = (error as Error).message;
+        expect(message).not.toContain(templateRoot);
+        expect(message).not.toContain('file-0');
+      }
+    }));
+});
+
 describe('SW-128: deterministic template generation rollback and cleanup', () => {
   it('deterministically rolls back partial writes when an error occurs during file copying', () =>
     withTempDirectory((root) => {

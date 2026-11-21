@@ -37,6 +37,17 @@ Scorecard results are published to the OpenSSF Scorecard service, uploaded to Gi
 
 A Scorecard score is a diagnostic signal, not a release gate by itself. Maintainers should review individual checks and remediation guidance, prioritizing findings that align with the project's threat model, dependency policy, workflow permissions, branch/ruleset protections, and release controls. Do not make cosmetic changes solely to raise the aggregate score when they conflict with the project's actual architecture or security model.
 
+## Workflow Artifacts
+
+Workflow artifacts (`actions/upload-artifact`) are subject to a static conformance audit in `scripts/audit-workflow-artifacts.mjs` enforced by `tests/workflow-artifacts.test.ts`. Rules:
+
+- every upload step must declare an explicit `retention-days` value within the bounds for its artifact class (test: 1–14 days, security: 1–30 days, release: 7–90 days, default: 1–30 days);
+- every upload step must declare explicit `path` values that do not match forbidden patterns (`.env` files other than `.env.example`/`.env.sample`/`.env.template`, credentials and key material, local caches such as `node_modules`/`coverage`/`dist`/`build`, and unrelated workspace files such as `.git`/`.github`);
+- PR-triggered workflows must not upload release-class artifacts;
+- release publishing workflows must not be PR-triggered.
+
+Run the audit locally with `node scripts/audit-workflow-artifacts.mjs`.
+
 ## Vulnerabilities
 
 Do not open a public issue for a suspected vulnerability. Follow `SECURITY.md` and GitHub Private Vulnerability Reporting.

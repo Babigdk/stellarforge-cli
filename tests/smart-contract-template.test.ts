@@ -39,6 +39,10 @@ describe('Smart Contract template', () => {
           join(projectRoot, 'contracts', 'hello', 'Cargo.toml'),
           'utf8',
         );
+        const contractTest = readFileSync(
+          join(projectRoot, 'contracts', 'hello', 'src', 'test.rs'),
+          'utf8',
+        );
         const readme = readFileSync(join(projectRoot, 'README.md'), 'utf8');
 
         expect(
@@ -53,6 +57,14 @@ describe('Smart Contract template', () => {
           'name = "stellarforge-starter-contract"',
         );
         expect(contractManifest).not.toContain('demo.contract');
+        expect(contractTest).toContain('Env::default()');
+        expect(contractTest).toContain('DETERMINISTIC_LEDGER_SEQUENCE');
+        expect(contractTest).toContain('DETERMINISTIC_LEDGER_TIMESTAMP');
+        expect(contractTest).toContain('env.ledger().with_mut');
+        expect(contractTest).toContain('"StellarForge"');
+        expect(contractTest).not.toMatch(/https?:\/\//i);
+        expect(contractTest).not.toMatch(/soroban-testnet|horizon|rpc/i);
+        expect(contractTest).not.toMatch(/S[A-Z0-9]{55}/);
         expect(readme).toContain('# demo.contract');
         expect(readme).toContain('stellar contract build');
         expect(readme).toContain('stellar contract deploy');

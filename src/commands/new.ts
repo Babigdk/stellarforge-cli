@@ -9,11 +9,16 @@ import {
   validateProjectInput,
 } from '../generator/validation.js';
 import { TerminalOutput } from '../output/terminal.js';
+import {
+  createCancellationController,
+  type CancellationController,
+} from '../errors/boundary.js';
 
 export interface NewCommandOptions {
   readonly services?: ProjectGeneratorServices;
   readonly output?: TerminalOutput;
   readonly cwd?: () => string;
+  readonly cancellation?: CancellationController;
 }
 
 interface NewCommandFlags {
@@ -41,6 +46,7 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
   const services = options.services ?? createDefaultServices();
   const output = options.output ?? new TerminalOutput();
   const cwd = options.cwd ?? process.cwd;
+  const cancellation = options.cancellation ?? createCancellationController();
 
   return new Command('new')
     .description('Create a new StellarForge project.')
@@ -51,36 +57,45 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
     )
     .option('--dry-run', 'Preview generated files without writing to disk.')
     .action((projectName: string, flags: NewCommandFlags) => {
-      const result = orchestrateProjectGeneration(
-        {
-          projectName,
-          cwd: cwd(),
-          ...(flags.template === undefined
-            ? {}
-            : { templateId: flags.template }),
-        },
-        services,
-        {
-          ...(flags.dryRun === undefined ? {} : { dryRun: flags.dryRun }),
-        },
-      );
-
-      if ('dryRun' in result) {
-        output.info(
-          `Preview for ${result.templateId} at ${result.destination}:`,
+      const signal = cancellation.begin();
+      try {
+        const result = orchestrateProjectGeneration(
+          {
+            projectName,
+            cwd: cwd(),
+            ...(flags.template === undefined
+              ? {}
+              : { templateId: flags.template }),
+          },
+          services,
+          {
+            ...(flags.dryRun === undefined ? {} : { dryRun: flags.dryRun }),
+          },
         );
-        output.info('Files to add:');
-        for (const file of result.files) {
-          output.info(`  ${file.path}`);
-          for (const substitution of file.substitutions) {
-            output.info(`    ${substitution}`);
-          }
-        }
-        return;
-      }
 
-      output.success(
-        `Created ${result.projectName} from ${result.templateId} at ${result.destination}.`,
-      );
+        if (signal.aborted) {
+          throw signal.reason;
+        }
+
+        if ('dryRun' in result) {
+          output.info(
+            `Preview for ${result.templateId} at ${result.destination}:`,
+          );
+          output.info('Files to add:');
+          for (const file of result.files) {
+            output.info(`  ${file.path}`);
+            for (const substitution of file.substitutions) {
+              output.info(`    ${substitution}`);
+            }
+          }
+          return;
+        }
+
+        output.success(
+          `Created ${result.projectName} from ${result.templateId} at ${result.destination}.`,
+        );
+      } finally {
+        cancellation.end();
+      }
     });
 }

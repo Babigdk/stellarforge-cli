@@ -34,7 +34,7 @@ Help exits successfully with code `0`.
 stellarforge --version
 ```
 
-The version comes from installed package metadata. No registry request or subprocess is used.
+The version comes from the installed package's `package.json`. The root command name (from the single `bin` entry) and description match the same file; no registry request or subprocess is used, and no duplicate CLI-side constant is kept.
 
 Unknown commands, unknown options, and missing required positional arguments are usage failures and exit with code `2`.
 
@@ -296,3 +296,23 @@ The following are not part of the implemented MVP command surface:
 - arbitrary custom deployment commands.
 
 Do not rely on roadmap items as available behavior until their implementation is merged and documented.
+
+
+### Preflight
+
+Before the Stellar CLI deployment subprocess starts, `stellarforge deploy` runs a local preflight that lists each required prerequisite with its pass/fail state. Typical checks include:
+
+- the project contains a supported Cargo smart-contract layout;
+- the effective network is exactly `testnet`;
+- the effective source is a valid named Stellar CLI identity alias;
+- the configuration file, if present, is well formed.
+
+Preflight is validation and reporting only. It does not invoke a deployment transaction, does not spawn subprocesses, and does not contact any network endpoint.
+
+Preflight output never prints private keys, seed phrases, tokens, account StrKeys, identity alias values, or other sensitive configuration values. Failed checks include remediation steps, for example:
+
+- `network`: set `--network testnet` or add `"network": "testnet"` to `stellarforge.config.json`;
+- `identity`: pass `--source <alias>` with a named Stellar CLI identity, not a raw secret or public key;
+- `project-layout`: run the command from a directory containing a supported Cargo smart-contract project.
+
+If any required preflight check fails, the command exits with code `2` before any deployment subprocess is started.

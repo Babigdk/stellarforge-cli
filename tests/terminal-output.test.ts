@@ -4,6 +4,7 @@ import {
   TerminalOutput,
   type TextOutputStream,
 } from '../src/output/terminal.js';
+import { TERMINAL_FIXTURES } from './fixtures/terminal-output-fixtures.js';
 
 function createCaptureStream(target: string[]): TextOutputStream {
   return {
@@ -63,5 +64,34 @@ describe('TerminalOutput', () => {
     expect(sanitizeTerminalText('one\ttwo\nthree\rfour')).toBe(
       'one\ttwo\nthreefour',
     );
+  });
+
+  describe('bidi control characters', () => {
+    it('strips bidi override and isolate controls that could reorder text', () => {
+      const { bidiControls } = TERMINAL_FIXTURES;
+
+      // Deceptive filename: "report.exe" disguised as "report.txt" via RLO
+      expect(sanitizeTerminalText(bidiControls.deceptiveFilename)).toBe(
+        bidiControls.sanitizedFilename,
+      );
+
+      // All bidi control characters should be removed
+      expect(sanitizeTerminalText(bidiControls.controlCharacters)).toBe('');
+
+      // Mixed-direction command with RTL text should keep RTL text but strip controls
+      expect(sanitizeTerminalText(bidiControls.mixedDirectionCommand)).toBe(
+        'Command target executed for العربية and עברית',
+      );
+
+      // Safe RTL text (Arabic, Hebrew) should remain readable
+      expect(sanitizeTerminalText(bidiControls.safeRtlText)).toBe(
+        'StellarForge: مرحبا שלום (سلام)',
+      );
+
+      // Directional marks (LRM, RLM, ALM) should be preserved as they don't reorder
+      expect(sanitizeTerminalText(bidiControls.directionalMarks)).toBe(
+        'a\u200eb\u200fc\u061cd',
+      );
+    });
   });
 });

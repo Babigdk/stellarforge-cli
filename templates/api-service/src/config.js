@@ -75,6 +75,58 @@ function parseNetwork(value) {
   return network;
 }
 
+function parseAllowedOrigins(value) {
+  const raw = value === undefined || value === null ? '' : String(value).trim();
+
+  if (raw.length === 0) {
+    return Object.freeze([]);
+  }
+
+  const entries = raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  const origins = entries.map((entry, index) => {
+    const label = `API_CORS_ALLOWED_ORIGINS entry ${index + 1}`;
+
+    if (entry.includes('*')) {
+      throw new Error(`${label} must be an explicit origin without wildcards.`);
+    }
+
+    let url;
+    try {
+      url = new URL(entry);
+    } catch {
+      throw new Error(`${label} must be a valid absolute origin.`);
+    }
+
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      throw new Error(`${label} must use HTTPS or HTTP protocol.`);
+    }
+
+    if (
+      url.username ||
+      url.password ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash
+    ) {
+      throw new Error(
+        `${label} must be an origin without credentials, path, query, or fragment.`,
+      );
+    }
+
+    if (url.origin === 'null') {
+      throw new Error(`${label} must be a concrete origin, not null.`);
+    }
+
+    return url.origin;
+  });
+
+  return Object.freeze([...new Set(origins)]);
+}
+
 export function getConfig(env = globalThis.process.env) {
   return {
     host: parseHost(env.API_HOST),
@@ -85,5 +137,6 @@ export function getConfig(env = globalThis.process.env) {
       env.STELLAR_HORIZON_URL ?? DEFAULTS.horizonUrl,
     ),
     rpcUrl: parseUrl('STELLAR_RPC_URL', env.STELLAR_RPC_URL ?? DEFAULTS.rpcUrl),
+    corsAllowedOrigins: parseAllowedOrigins(env.API_CORS_ALLOWED_ORIGINS),
   };
 }

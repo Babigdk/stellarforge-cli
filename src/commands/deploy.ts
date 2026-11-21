@@ -13,14 +13,17 @@ import {
 import type { DevProcessSpec } from '../dev/project.js';
 import {
   resolveTestnetDeploymentPlan,
+  runDeploymentPreflight,
   validateDeploymentOutput,
   DEPLOYMENT_TERMINATION_GRACE_MS,
   DEPLOYMENT_TIMEOUT_MS,
   type DeployedContractData,
   type DeploymentOutput,
+  type DeploymentPreflightResult,
   type TestnetDeploymentInput,
 } from '../deployment/project.js';
 import { ValidationCliError } from '../errors/errors.js';
+import { CancellationCliError } from '../errors/boundary.js';
 import { TerminalOutput } from '../output/terminal.js';
 
 export interface DeployCommandOptions extends DevOrchestratorOptions {
@@ -32,14 +35,29 @@ export interface DeployCommandOptions extends DevOrchestratorOptions {
   readonly resolvePlan?: (
     input: TestnetDeploymentInput,
   ) => readonly DevProcessSpec[];
+  readonly runPreflight?: (
+    input: TestnetDeploymentInput,
+  ) => DeploymentPreflightResult;
   readonly validateDeployment?:
-    boolean | ((output: DeploymentOutput) => DeployedContractData);
+    | boolean
+    | ((output: DeploymentOutput) => DeployedContractData);
 }
 
 interface DeployCommandFlags {
   readonly network?: string;
   readonly source?: string;
 }
+
+function isCancellationError(error: unknown): boolean {
+  if (error instanceof CancellationCliError) {
+    return true;
+  }
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  const code = (error as { code?: unknown }).code;
+  return code === 'SIGINT' || code === 'CANCELLED';
+ }
 
 export function createDeployCommand(
   options: DeployCommandOptions = {},
@@ -49,6 +67,7 @@ export function createDeployCommand(
     output = new TerminalOutput(),
     resolveConfig = resolveProjectConfig,
     resolvePlan = resolveTestnetDeploymentPlan,
+    runPreflight = runDeploymentPreflight,
     validateDeployment,
   } = options;
 
@@ -82,7 +101,26 @@ export function createDeployCommand(
 
       if (identity === undefined) {
         throw new ValidationCliError(
-          'Deployment identity is required. Pass `--source <identity>` or set a named identity in stellarforge.config.json.',
+          'Deployment identity is required. Pass `--source <identity> ` or set a named identity in stellarforge.config.json.',
+        );
+      }
+
+      // Local-only preflight: no subprocess, no network, no identity echo.
+      const preflight = runPreflight({
+        cwd: projectRoot,
+        network,
+        source: identity,
+      });
+      output.info('Deployment preflight:');
+      for (const check of preflight.checks) {
+        output.info(`  [${check.passed ? 'PASS' : 'FAIL'}] ${check.label}`);
+      }
+      if (!preflight.passed) {
+        const remediations = preflight.checks
+          .filter((check) => !check.passed && check.remediation !== undefined)
+          .map((check) => `- ${check.remediation}`);
+        throw new ValidationCliError(
+          `Deployment preflight failed. Remediation:\n${remediations.join('\n')}`,
         );
       }
 
@@ -117,17 +155,24 @@ export function createDeployCommand(
         };
       }
 
-      await superviseDevProcesses(plan, {
-        ...options,
-        output,
-        timeoutMs: DEPLOYMENT_TIMEOUT_MS,
-        terminationGraceMs: DEPLOYMENT_TERMINATION_GRACE_MS,
-        timeoutMessage:
-          'Deployment timed out locally after 10 minutes. The remote submission outcome is uncertain; verify the transaction manually before retrying.',
-        ...(effectiveSpawnProcess === undefined
-          ? {}
-          : { spawnProcess: effectiveSpawnProcess }),
-      });
+      try {
+        await superviseDevProcesses(plan, {
+          ...options,
+          output,
+          timeoutMs: DEPLOYMENT_TIMEOUT_MS,
+          terminationGraceMs: DEPLOYMENT_TERMINATION_GRACE_MS,
+          timeoutMessage:
+            'Deployment timed out locally after 10 minutes. The remote submission outcome is uncertain; verify the transaction manually before retrying.',
+          ...(effectiveSpawnProcess === undefined
+            ? {}
+            : { spawnProcess: effectiveSpawnProcess }),
+        });
+      } catch (error) {
+        if (isCancellationError(error)) {
+          throw new CancellationCliError('deploy');
+        }
+        throw error;
+      }
 
       if (validateDeployment) {
         const validator =

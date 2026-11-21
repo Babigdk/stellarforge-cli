@@ -14,6 +14,73 @@ export interface TestnetDeploymentInput {
   readonly source: string;
 }
 
+export interface DeploymentPreflightCheck {
+  readonly label: string;
+  readonly passed: boolean;
+  readonly remediation?: string;
+}
+
+export interface DeploymentPreflightResult {
+  readonly passed: boolean;
+  readonly checks: readonly DeploymentPreflightCheck[];
+}
+
+/**
+ * Local-only preflight validation. Performs no subprocess spawns and no
+ * network requests. Never echoes the identity alias or any config values.
+ */
+export function runDeploymentPreflight(
+  input: TestnetDeploymentInput,
+): DeploymentPreflightResult {
+  const checks: DeploymentPreflightCheck[] = [];
+
+  const networkOk = input.network === 'testnet';
+  checks.push({
+    label: 'Network is testnet',
+    passed: networkOk,
+    ...(networkOk
+      ? {}
+      : {
+          remediation:
+            'Pass `--network testnet`; the MVP deploys only to Stellar Testnet.',
+        }),
+  });
+
+  let identityOk = true;
+  try {
+    validateIdentityAlias(input.source);
+  } catch {
+    identityOk = false;
+  }
+  checks.push({
+    label: 'Identity alias is valid',
+    passed: identityOk,
+    ...(identityOk
+      ? {}
+      : {
+          remediation:
+            'Pass `--source <identity>` with a valid named Stellar CLI identity alias.',
+        }),
+  });
+
+  const cargoOk = existsSync(resolve(resolve(input.cwd), 'Cargo.toml'));
+  checks.push({
+    label: 'Cargo.toml workspace present',
+    passed: cargoOk,
+    ...(cargoOk
+      ? {}
+      : {
+          remediation:
+            'Run deploy from a generated Stellar smart-contract project root containing Cargo.toml.',
+        }),
+  });
+
+  return {
+    passed: checks.every((check) => check.passed),
+    checks,
+  };
+}
+
 export function resolveTestnetDeploymentPlan(
   input: TestnetDeploymentInput,
 ): readonly DevProcessSpec[] {
