@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 import { createDeployCommand } from '../src/commands/deploy.js';
 import { resolveTestnetDeploymentPlan } from '../src/deployment/project.js';
 import { ValidationCliError } from '../src/errors/index.js';
-import { withTempDirectory } from './helpers/index.js';
+import {
+  withTempDirectory,
+  writeGeneratedWasmArtifact,
+} from './helpers/index.js';
 
 const REJECTION_MESSAGE =
   'StellarForge deploy supports only the explicit `--network testnet` target in the MVP.';
@@ -27,6 +30,7 @@ const rejectedNetworks = [
 
 function writeCargoWorkspace(root: string): void {
   writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+  writeGeneratedWasmArtifact(root);
 }
 
 function expectNetworkRejection(network: string, root: string): void {

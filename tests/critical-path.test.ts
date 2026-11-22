@@ -6,7 +6,10 @@ import { describe, expect, it } from 'vitest';
 import { createDeployCommand } from '../src/commands/deploy.js';
 import { createNewCommand } from '../src/commands/new.js';
 import { createTestCommand } from '../src/commands/test.js';
-import { resolveTestnetDeploymentPlan } from '../src/deployment/project.js';
+import {
+  GENERATED_WASM_ARTIFACT_PATH,
+  resolveTestnetDeploymentPlan,
+} from '../src/deployment/project.js';
 import type { ManagedChildProcess } from '../src/dev/orchestrator.js';
 import type { DevProcessSpec } from '../src/dev/project.js';
 import {
@@ -19,6 +22,7 @@ import {
   createCapturedTerminalOutput,
   repositoryRoot,
   withTempDirectory,
+  writeGeneratedWasmArtifact,
 } from './helpers/index.js';
 
 const PROCESS_TEST_TIMEOUT_MS = 45_000;
@@ -223,6 +227,7 @@ describe('critical path: deployment security', () => {
   it('resolves the exact Testnet-only Stellar deployment plan', () =>
     withTempDirectory((root) => {
       writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+      writeGeneratedWasmArtifact(root);
 
       const [spec] = resolveTestnetDeploymentPlan({
         cwd: root,
@@ -236,6 +241,8 @@ describe('critical path: deployment security', () => {
         args: [
           'contract',
           'deploy',
+          '--wasm',
+          GENERATED_WASM_ARTIFACT_PATH,
           '--source-account',
           'ci-deployer',
           '--network',
@@ -248,6 +255,7 @@ describe('critical path: deployment security', () => {
   it('rejects every non-Testnet deployment target', () =>
     withTempDirectory((root) => {
       writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+      writeGeneratedWasmArtifact(root);
 
       for (const network of ['mainnet', 'pubnet', 'futurenet', 'local']) {
         expect(() =>
@@ -274,6 +282,7 @@ describe('critical path: deployment security', () => {
   it('executes the mocked deployment without reflecting secrets', () =>
     withTempDirectory(async (root) => {
       writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+      writeGeneratedWasmArtifact(root);
 
       const child = new FakeChildProcess();
       const captured = createCapturedTerminalOutput();
@@ -299,6 +308,8 @@ describe('critical path: deployment security', () => {
         args: [
           'contract',
           'deploy',
+          '--wasm',
+          GENERATED_WASM_ARTIFACT_PATH,
           '--source-account',
           'ci-deployer',
           '--network',
@@ -322,6 +333,10 @@ describe('critical path: deployment security', () => {
       cwd: () => '/workspace',
       output: createCapturedTerminalOutput().output,
       resolveConfig: () => ({ network: 'testnet', identity: 'ci-deployer' }),
+      runPreflight: () => ({
+        passed: true,
+        checks: [{ label: 'Preflight', passed: true }],
+      }),
       resolvePlan: () => [
         {
           label: 'stellar:deploy',

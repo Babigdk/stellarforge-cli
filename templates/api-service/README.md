@@ -112,3 +112,7 @@ Production deployments must undergo a deployment-specific security review:
 - Terminate TLS with valid certificates and enable `Strict-Transport-Security` when served exclusively over HTTPS;
 - Review reverse proxy / API gateway forwarding, CORS policies, rate limiting, and request payload limits;
 - Align CSP headers with upstream application architecture where applicable.
+
+## Offline smoke coverage
+
+`npm start`, `npm run check`, and `npm test` are executed in a freshly generated temporary project. The `cp .env.example .env` line is a local shell step; the offline smoke test uses an equivalent temporary `.env` file and does not require `cp` to be installed. No Stellar CLI, signing identity, credential, or external network access is required.

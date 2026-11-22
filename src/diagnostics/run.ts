@@ -27,16 +27,20 @@ function summarize(results: readonly DiagnosticResult[]): DiagnosticSummary {
   let fail = 0;
 
   for (const result of results) {
-    if (result.status === 'pass') pass += 1;
-    if (result.status === 'warn') warn += 1;
-    if (result.status === 'fail') fail += 1;
+    if (result.status === 'pass') {
+      pass += 1;
+    } else if (result.status === 'warn') {
+      warn += 1;
+    } else {
+      fail += 1;
+    }
   }
 
   return {
     pass,
     warn,
     fail,
-    total: results.length,
+    total: pass + warn + fail,
   };
 }
 

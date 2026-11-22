@@ -17,16 +17,18 @@ StellarForge CLI uses predictable process exit codes so humans, scripts, and CI 
 
 These values are part of the CLI contract and should not be changed casually. New stable categories require deliberate review and documentation.
 
-## Cancellation (SIGINT) Behavior
+## Doctor / Diagnostic Contract
 
-The `new`, `dev`, `test`, and `deploy` commands share a single cancellation contract:
+`stellarforge doctor` evaluates registered checks sequentially in registration order, then reports an aggregate result. Summary counts are over the evaluated check set: `pass + warn + fail == total`.
 
-- The first interrupt signal (SIGINT on all supported platforms, and SIGBREAK where the runtime delivers it) begins a graceful cancellation and reports exit code `130`.
-- Cleanup runs before the command reports cancellation when it is safe to do so. For `dev` this means stopping the watcher and terminating child processes it started; for `test` and `deploy` it means waiting for the in-flight subprocess to exit; for `new` it means rolling back partially generated output.
-- A cancelled command must not print success output after the signal is received. Its cancellation message is written to stderr.
-- An interrupt that arrives while cleanup is already in progress is treated as a forced exit: the process stops immediately with exit code `130` and does not wait for further cleanup.
-- Signals are never swallowed. The CLI does not override operating-system termination semantics for signals it does not handle (for example SEGKILL or SIGTERM on POSIX systems); those continue to terminate the process as the operating system defines.
-- Exit code `130` is the documented non-zero cancellation status and is distinct from generic failure (`1`) and validation (`2`) exits.
+| Scenario | Aggregate health | Exit code |
+|---|---|---|
+| No diagnostics registered / empty set (`total` 0) | No diagnostics registered | `0` |
+| All checks pass | Ready | `0` |
+| Mixed pass/warn, no failures | Usable with warnings | `0` |
+| Any failed check (including timeout or unavailable tool) | Action required | `5` |
+
+An incomplete/partial diagnostic set (for example, checks without remediation) is rendered deterministically as-is and counted by its reported statuses; missing remediation text does not change aggregation or exit code. Human summary/health lines and machine-readable summary counts must describe the same contract.
 
 ## Troubleshooting by Exit Code
 

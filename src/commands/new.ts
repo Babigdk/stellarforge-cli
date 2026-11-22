@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { ScaffoldingCancelledCliError } from '../errors/errors.js';
 import { orchestrateProjectGeneration } from '../generator/orchestrator.js';
 import { generateProjectFromTemplate } from '../generator/template-generation.js';
 import { selectTemplate } from '../generator/template-registry.js';
@@ -37,6 +38,9 @@ function createDefaultServices(): ProjectGeneratorServices {
         ...(generationOptions?.dryRun === undefined
           ? {}
           : { dryRun: generationOptions.dryRun }),
+        ...(generationOptions?.isCancelled === undefined
+          ? {}
+          : { isCancelled: generationOptions.isCancelled }),
       });
     },
   };
@@ -57,6 +61,13 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
     )
     .option('--dry-run', 'Preview generated files without writing to disk.')
     .action((projectName: string, flags: NewCommandFlags) => {
+      let cancelled = false;
+      const onSigint = (): void => {
+        cancelled = true;
+      };
+
+      process.on('SIGINT', onSigint);
+
       const signal = cancellation.begin();
       try {
         const result = orchestrateProjectGeneration(
@@ -70,6 +81,12 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
           services,
           {
             ...(flags.dryRun === undefined ? {} : { dryRun: flags.dryRun }),
+            isCancelled: () => cancelled,
+          },
+        );
+
+        if (cancelled) {
+          throw new ScaffoldingCancelledCliError();
           },
         );
 
@@ -91,10 +108,15 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
           return;
         }
 
+        if (cancelled) {
+          throw new ScaffoldingCancelledCliError();
+        }
+
         output.success(
           `Created ${result.projectName} from ${result.templateId} at ${result.destination}.`,
         );
       } finally {
+        process.removeListener('SIGINT', onSigint);
         cancellation.end();
       }
     });

@@ -4,10 +4,17 @@ import {
   type RunCommand,
 } from './process.js';
 import type { DiagnosticCheck, DiagnosticResult } from './types.js';
+import { parseNumericVersion } from './version.js';
 
 function parseGitVersion(output: string): string | null {
   const match = /^git version (\d+\.\d+\.\d+)/i.exec(output.trim());
-  return match?.[1] ?? null;
+  const version = match?.[1] ?? null;
+
+  if (!version || !parseNumericVersion(version)) {
+    return null;
+  }
+
+  return version;
 }
 
 export function createGitDiagnostic(

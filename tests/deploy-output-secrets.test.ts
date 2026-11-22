@@ -45,6 +45,10 @@ async function runDeploy(
     cwd: () => '/workspace',
     output: captured.output,
     resolveConfig: (_cwd, overrides) => overrides,
+    runPreflight: () => ({
+      passed: true,
+      checks: [{ label: 'Preflight', passed: true }],
+    }),
     resolvePlan: () => [DEPLOY_SPEC],
     spawnProcess: () => child,
   });

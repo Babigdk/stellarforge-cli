@@ -46,6 +46,7 @@ export interface DeployCommandOptions extends DevOrchestratorOptions {
 interface DeployCommandFlags {
   readonly network?: string;
   readonly source?: string;
+  readonly preflight?: boolean;
 }
 
 function isCancellationError(error: unknown): boolean {
@@ -81,6 +82,10 @@ export function createDeployCommand(
       '--source <identity>',
       'Named Stellar CLI identity alias. CLI value overrides project configuration.',
     )
+    .option(
+      '--preflight',
+      'Validate deployment inputs and project requirements without starting the Stellar CLI.',
+    )
     .action(async (flags: DeployCommandFlags) => {
       const projectRoot = cwd();
 
@@ -101,7 +106,7 @@ export function createDeployCommand(
 
       if (identity === undefined) {
         throw new ValidationCliError(
-          'Deployment identity is required. Pass `--source <identity> ` or set a named identity in stellarforge.config.json.',
+          'Deployment identity is required. Pass `--source <identity>` or set a named identity in stellarforge.config.json.',
         );
       }
 
@@ -122,6 +127,11 @@ export function createDeployCommand(
         throw new ValidationCliError(
           `Deployment preflight failed. Remediation:\n${remediations.join('\n')}`,
         );
+      }
+
+      if (flags.preflight) {
+        output.info('Preflight only. No Stellar CLI process was started.');
+        return;
       }
 
       const plan = resolvePlan({

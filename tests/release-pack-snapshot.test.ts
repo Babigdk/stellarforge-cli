@@ -70,7 +70,33 @@ describe('npm pack content snapshot', () => {
       ).toBe(true);
       expect(path).not.toBe('.npmrc');
     }
-  }, 15_000);
+
+  });
+
+  // SW-145: regression guard for the Smart Contract template publish artifact.
+  // Confirms every required source file is present in the published package.
+  //
+  // templates/smart-contract/gitignore (no leading dot) is the renamed form of
+  // .gitignore. npm-packlist always excludes .gitignore files regardless of the
+  // package.json files field, so the file was renamed to avoid that exclusion.
+  // template-generation.ts maps it back to .gitignore in generated projects.
+  it('includes every required Smart Contract template file (SW-145)', () => {
+    const entry = runPackDryRun();
+    const paths = entry.files.map((file) => file.path);
+
+    expect(paths).toContain('templates/smart-contract/Cargo.toml');
+    expect(paths).toContain(
+      'templates/smart-contract/contracts/hello/Cargo.toml',
+    );
+    expect(paths).toContain(
+      'templates/smart-contract/contracts/hello/src/lib.rs',
+    );
+    expect(paths).toContain(
+      'templates/smart-contract/contracts/hello/src/test.rs',
+    );
+    expect(paths).toContain('templates/smart-contract/README.md');
+    expect(paths).toContain('templates/smart-contract/gitignore');
+  });
 });
 
 // SW-197: production builds keep source maps available for local

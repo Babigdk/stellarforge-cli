@@ -42,6 +42,10 @@ function createDeploy(
   return createDeployCommand({
     cwd: () => '/workspace',
     output: captured.output,
+    runPreflight: () => ({
+      passed: true,
+      checks: [{ label: 'Preflight', passed: true }],
+    }),
     resolvePlan: () => [DEPLOY_SPEC],
     spawnProcess: () => child,
   });

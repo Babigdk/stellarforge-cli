@@ -8,7 +8,10 @@ import {
 import { validateStellarForgeConfig } from '../src/config/schema.js';
 import { resolveTestnetDeploymentPlan } from '../src/deployment/project.js';
 import { ValidationCliError } from '../src/errors/index.js';
-import { withTempDirectory } from './helpers/index.js';
+import {
+  withTempDirectory,
+  writeGeneratedWasmArtifact,
+} from './helpers/index.js';
 
 const ENUM_MESSAGE =
   'Configuration network must be one of: testnet, futurenet, mainnet.';
@@ -32,6 +35,7 @@ const nonStringNetworks = [1, 0, true, false, null, [], {}];
 
 function writeCargoWorkspace(root: string): void {
   writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+  writeGeneratedWasmArtifact(root);
 }
 
 describe('configuration network enum', () => {

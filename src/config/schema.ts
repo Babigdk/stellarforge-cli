@@ -59,9 +59,23 @@ export function validateStellarForgeConfig(value: unknown): StellarForgeConfig {
     );
   }
 
-  if (value.version !== 1) {
+  if (value.version === undefined) {
     throw new ValidationCliError(
-      'stellarforge.config.json must declare "version": 1.',
+      'stellarforge.config.json is missing the required "version" field.',
+    );
+  }
+
+  if (
+    typeof value.version !== 'number' ||
+    !Number.isInteger(value.version) ||
+    value.version < 1
+  ) {
+    throw new ValidationCliError('"version" must be a positive integer.');
+  }
+
+  if (value.version > 1) {
+    throw new ValidationCliError(
+      `This config declares schema version ${value.version}, which requires a newer stellarforge CLI. Please upgrade stellarforge to continue.`,
     );
   }
 

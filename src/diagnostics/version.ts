@@ -4,16 +4,31 @@ export interface NumericVersion {
   readonly patch: number;
 }
 
+function parseSafeIntegerComponent(component: string): number | null {
+  if (!/^\d+$/.test(component)) {
+    return null;
+  }
+
+  const value = Number(component);
+  if (!Number.isSafeInteger(value)) {
+    return null;
+  }
+
+  return value;
+}
+
 export function parseNumericVersion(value: string): NumericVersion | null {
   const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(value.trim());
 
   if (!match) return null;
 
-  const major = Number(match[1]);
-  const minor = Number(match[2]);
-  const patch = Number(match[3]);
+  const major = parseSafeIntegerComponent(match[1]!);
+  const minor = parseSafeIntegerComponent(match[2]!);
+  const patch = parseSafeIntegerComponent(match[3]!);
 
-  if (![major, minor, patch].every(Number.isSafeInteger)) return null;
+  if (major === null || minor === null || patch === null) {
+    return null;
+  }
 
   return { major, minor, patch };
 }

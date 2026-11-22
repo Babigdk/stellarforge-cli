@@ -1,15 +1,22 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { resolveTestnetDeploymentPlan } from '../src/deployment/project.js';
+import {
+  GENERATED_WASM_ARTIFACT_PATH,
+  resolveTestnetDeploymentPlan,
+} from '../src/deployment/project.js';
 import { ValidationCliError } from '../src/errors/index.js';
-import { withTempDirectory } from './helpers/index.js';
+import {
+  withTempDirectory,
+  writeGeneratedWasmArtifact,
+} from './helpers/index.js';
 
 const STELLAR_EXECUTABLE =
   process.platform === 'win32' ? 'stellar.exe' : 'stellar';
 
 function writeCargoWorkspace(root: string): void {
   writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+  writeGeneratedWasmArtifact(root);
 }
 
 describe('Stellar deploy argument plan', () => {
@@ -30,6 +37,8 @@ describe('Stellar deploy argument plan', () => {
           args: [
             'contract',
             'deploy',
+            '--wasm',
+            GENERATED_WASM_ARTIFACT_PATH,
             '--source-account',
             'deployer',
             '--network',
@@ -54,13 +63,15 @@ describe('Stellar deploy argument plan', () => {
       expect(args).toEqual([
         'contract',
         'deploy',
+        '--wasm',
+        GENERATED_WASM_ARTIFACT_PATH,
         '--source-account',
         'team-deployer',
         '--network',
         'testnet',
       ]);
-      expect(args[3]).toBe('team-deployer');
-      expect(args[5]).toBe('testnet');
+      expect(args[5]).toBe('team-deployer');
+      expect(args[7]).toBe('testnet');
       for (const arg of args) {
         expect(arg).not.toMatch(/\s/);
       }

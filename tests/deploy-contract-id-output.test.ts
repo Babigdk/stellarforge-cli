@@ -19,6 +19,7 @@ import {
   SECRET_FIXTURE_VALUES,
   SECRET_STRKEY_FIXTURE,
   withTempDirectory,
+  writeGeneratedWasmArtifact,
 } from './helpers/index.js';
 import { MockChildProcess } from './helpers/mock-child-process.js';
 
@@ -40,6 +41,7 @@ const deployArgs = [
 
 function writeCargoWorkspace(root: string): void {
   writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+  writeGeneratedWasmArtifact(root);
 }
 
 function expectNoSecrets(text: string): void {

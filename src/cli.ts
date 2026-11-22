@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
-import { isDebugEnabled, runWithCliErrorBoundary } from './errors/index.js';
+import {
+  CANCELLATION_EXIT_CODE,
+  isDebugEnabled,
+  runWithCliErrorBoundary,
+} from './errors/index.js';
 import { EXIT_CODES } from './errors/errors.js';
 import { runCli } from './main.js';
 
@@ -8,7 +12,7 @@ import { runCli } from './main.js';
  * Documented cancellation exit code for user interrupts (SIGINT/SIGTERM).
  * This is the conventional 130 exit code for signal-terminated processes.
  */
-const CANCElLATION_EXIT_CODE = 130;
+
 
 /**
  * Tracks whether a cancellation signal has already been observed.
@@ -38,7 +42,9 @@ function handleSignal(signal: NodeJS.Signals): void {
   process.exitCode = CANCELLATION_EXIT_CODE;
   if (typeof process.emit === 'function') {
     // Notify any listeners (e.g. cleanup coordinators) without swallowing the signal.
-    process.emit('cancellationRequested');
+    (process as unknown as {
+  emit(event: string): boolean;
+}).emit('cancellationRequested');
   }
 }
 
@@ -53,7 +59,7 @@ const boundaryExitCode = await runWithCliErrorBoundary(
 
 if (cancellationRequested) {
   // Cancellation takes precedence over command results: no success output after cancellation.
-  process.exitCode = CANCElLATION_EXIT_CODE;
+  process.exitCode = CANCELLATION_EXIT_CODE;
 } else if (boundaryExitCode !== EXIT_CODES.success) {
   process.exitCode = boundaryExitCode;
 }

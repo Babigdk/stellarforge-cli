@@ -72,6 +72,18 @@ describe('Node.js diagnostic', () => {
     }
   });
 
+  it('rejects unsafe integer components deterministically without rounding', () => {
+    const unsafe = [
+      '9007199254740992.0.0',
+      '22.9007199254740992.0',
+      '22.13.9007199254740992',
+    ];
+
+    for (const version of unsafe) {
+      expect(createNodeDiagnostic(version).run().status).toBe('fail');
+    }
+  });
+
   it('handles supported versions with leading and trailing whitespace', () => {
     const result = createNodeDiagnostic('  22.13.0\n\t').run();
 
@@ -214,6 +226,15 @@ describe('npm diagnostic', () => {
       expect(JSON.stringify(result)).not.toContain('SECRET_ENV');
       expect(JSON.stringify(result)).not.toContain('token_value');
     }
+  });
+
+  it('rejects unsafe npm integer components deterministically without rounding', () => {
+    const execute: RunCommand = () => commandResult(0, '9007199254740992.0.0\n');
+
+    expect(createNpmDiagnostic(execute).run()).toMatchObject({
+      status: 'fail',
+      message: 'npm returned an unrecognized version.',
+    });
   });
 
   it('fails npm versions below the supported minimum', () => {

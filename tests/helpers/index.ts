@@ -26,6 +26,7 @@ export {
 export {
   createTempDirectoryFixture,
   withTempDirectory,
+  writeGeneratedWasmArtifact,
   type TempDirectoryFixture,
 } from './temp-directory.js';
 export {

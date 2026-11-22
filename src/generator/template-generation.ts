@@ -13,6 +13,10 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import {
+  ScaffoldingCancelledCliError,
+  ValidationCliError,
+} from '../errors/errors.js';
 import { ValidationCliError } from '../errors/errors.js';
 import {
   collectTemplateSourceTree,
@@ -29,12 +33,24 @@ import type {
 
 const SUBSTITUTION_TOKEN = /\{\{([A-Za-z][A-Za-z0-9]*)\}\}/g;
 
+
+// npm-packlist always excludes .gitignore files from published packages,
+// regardless of the package.json files field. Template gitignore files are
+// therefore stored without the leading dot so they survive npm pack. This
+// map restores the intended filename when the file is written to the
+// generated project.
+const DOTFILE_REMAP: Readonly<Record<string, string>> = {
+  gitignore: '.gitignore',
+};
+
+
 /** Maximum number of files a template may contain (25× the largest bundled template). */
 export const MAX_TEMPLATE_FILE_COUNT = 256;
 /** Maximum aggregate bytes of regular files (~55× the largest bundled template). */
 export const MAX_TEMPLATE_TOTAL_BYTES = 1024 * 1024;
 /** Maximum bytes of a single template file (~46× the largest bundled template file). */
 export const MAX_TEMPLATE_FILE_BYTES = 256 * 1024;
+
 
 export interface TemplateGenerationOptions {
   readonly templateRoot: string;
@@ -44,6 +60,7 @@ export interface TemplateGenerationOptions {
    */
   readonly generatorVersion?: string | undefined;
   readonly dryRun?: boolean;
+  readonly isCancelled?: () => boolean;
 }
 
 interface TemplateBudget {
@@ -100,6 +117,10 @@ function isBinary(content: Buffer): boolean {
   return content.includes(0);
 }
 
+function assertNotCancelled(isCancelled?: () => boolean): void {
+  if (isCancelled?.()) {
+    throw new ScaffoldingCancelledCliError();
+  }
 /**
  * Measures the template tree before any file is written. Exceeding a documented
  * limit fails with a safe aggregate message that never embeds local paths or
@@ -194,20 +215,41 @@ function visitTemplateTree(
   templateRoot: string,
   relativeDirectory: string,
   variables: Readonly<Record<string, string>>,
-): readonly RenderedTemplateFile[] {
-  return tree.entries
-    .filter((entry) => entry.type === 'file')
-    .map((entry) => {
-      const content = readFileSync(join(tree.root, entry.relativePath));
+  visitFile: (
+    relativePath: string,
+    content: Buffer | string,
+    substitutions: readonly string[],
+  ) => void,
+  visitDirectory: (relativePath: string) => void,
+  isCancelled?: () => boolean,
+): void {
+  assertNotCancelled(isCancelled);
+  const sourceDirectory = resolve(templateRoot, relativeDirectory);
+  const entries = readdirSync(sourceDirectory, { withFileTypes: true }).sort(
+    (a, b) => {
+      if (a.name < b.name) return -1;
+      if (a.name > b.name) return 1;
+      return 0;
+    },
+  );
 
-      if (isBinary(content)) {
-        return {
-          relativePath: entry.relativePath,
-          content,
-          substitutions: [],
-          mode: entry.mode,
-        };
-      }
+  for (const entry of entries) {
+    assertNotCancelled(isCancelled);
+    assertSafeEntryName(entry.name);
+
+    const destinationName = DOTFILE_REMAP[entry.name] ?? entry.name;
+    const relativePath = join(relativeDirectory, entry.name);
+    const destinationRelativePath = join(relativeDirectory, destinationName);
+    const sourcePath = resolve(templateRoot, relativePath);
+
+
+    if (!isWithin(templateRoot, sourcePath)) {
+      throw new ValidationCliError(
+        'Template file path escapes the trusted project root.',
+      );
+    }
+
+    const sourceStat = lstatSync(sourcePath);
 
       const rendered = renderText(content.toString('utf8'), variables);
       return {
@@ -219,8 +261,18 @@ function visitTemplateTree(
     });
 }
 
-function resolveStagingPath(stagingRoot: string, relativePath: string): string {
-  const destinationPath = resolve(stagingRoot, relativePath);
+    if (sourceStat.isDirectory()) {
+      visitDirectory(relativePath);
+      visitTemplateTree(
+        templateRoot,
+        relativePath,
+        variables,
+        visitFile,
+        visitDirectory,
+        isCancelled,
+      );
+      continue;
+    }
 
   if (!isWithin(stagingRoot, destinationPath)) {
     throw new ValidationCliError(
@@ -228,16 +280,13 @@ function resolveStagingPath(stagingRoot: string, relativePath: string): string {
     );
   }
 
-  return destinationPath;
-}
+    if (isBinary(content)) {
+      visitFile(destinationRelativePath, content, []);
+      continue;
+    }
 
-function writeRenderedFile(
-  destinationPath: string,
-  file: RenderedTemplateFile,
-): void {
-  if (process.platform === 'win32') {
-    writeFileSync(destinationPath, file.content);
-    return;
+    const rendered = renderText(content.toString('utf8'), variables);
+    visitFile(destinationRelativePath, rendered.content, rendered.substitutions);
   }
 
   const mode = resolveGeneratedFileMode(file.mode);
@@ -351,10 +400,20 @@ export function generateProjectFromTemplate(
   const renderedFiles = renderTemplateFiles(tree, variables);
 
   if (options.dryRun) {
-    const files: ProjectGenerationPreviewFile[] = renderedFiles.map((file) => ({
-      path: file.relativePath.split(sep).join('/'),
-      substitutions: file.substitutions,
-    }));
+    const files: ProjectGenerationPreviewFile[] = [];
+    visitTemplateTree(
+      templateRoot,
+      '.',
+      variables,
+      (relativePath, _content, substitutions) => {
+        files.push({
+          path: relativePath.split(sep).join('/'),
+          substitutions,
+        });
+      },
+      () => undefined,
+      options.isCancelled,
+    );
 
     return {
       dryRun: true,
@@ -371,8 +430,18 @@ export function generateProjectFromTemplate(
   let removedExistingDestination = false;
 
   try {
-    for (const entry of tree.entries) {
-      if (entry.type !== 'directory') continue;
+    assertNotCancelled(options.isCancelled);
+    visitTemplateTree(
+      templateRoot,
+      '.',
+      variables,
+      (relativePath, content) => {
+        const destinationPath = resolve(stagingRoot, relativePath);
+        if (!isWithin(stagingRoot, destinationPath)) {
+          throw new ValidationCliError(
+            'Template file path escapes the trusted project root.',
+          );
+        }
 
       const destinationPath = resolveStagingPath(
         stagingRoot,
@@ -384,18 +453,12 @@ export function generateProjectFromTemplate(
       });
     }
 
-    for (const file of renderedFiles) {
-      const destinationPath = resolveStagingPath(
-        stagingRoot,
-        file.relativePath,
-      );
+        mkdirSync(destinationPath, { recursive: false });
+      },
+      options.isCancelled,
+    );
 
-      mkdirSync(dirname(destinationPath), {
-        recursive: true,
-        mode: GENERATED_DIRECTORY_MODE,
-      });
-      writeRenderedFile(destinationPath, file);
-    }
+    assertNotCancelled(options.isCancelled);
 
     // Re-validate immediately before the mutating write phase. The checks
     // above can be invalidated by a concurrent destination replacement while
@@ -429,10 +492,12 @@ export function generateProjectFromTemplate(
         );
       }
 
+      assertNotCancelled(options.isCancelled);
       rmdirSync(destination);
       removedExistingDestination = true;
     }
 
+    assertNotCancelled(options.isCancelled);
     // Provenance marker: record only the template identifier and generator
     // version — never user, host, path, or environment information. Kept
     // byte-stable across runs except for the version value itself. Written

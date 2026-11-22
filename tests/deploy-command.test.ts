@@ -64,6 +64,10 @@ describe('deploy command', () => {
     const command = createDeployCommand({
       cwd: () => '/workspace',
       output: captured.output,
+      runPreflight: () => ({
+        passed: true,
+        checks: [{ label: 'Preflight', passed: true }],
+      }),
       resolvePlan: () => [],
       spawnProcess,
     });
@@ -98,6 +102,10 @@ describe('deploy command', () => {
     const command = createDeployCommand({
       cwd: () => '/workspace',
       output: captured.output,
+      runPreflight: () => ({
+        passed: true,
+        checks: [{ label: 'Preflight', passed: true }],
+      }),
       resolvePlan(input) {
         received = input;
         return [
@@ -146,6 +154,10 @@ describe('deploy command', () => {
     const child = new DeployChild();
     const command = createDeployCommand({
       cwd: () => '/workspace',
+      runPreflight: () => ({
+        passed: true,
+        checks: [{ label: 'Preflight', passed: true }],
+      }),
       resolvePlan: () => [
         {
           label: 'stellar:deploy',
@@ -185,6 +197,10 @@ describe('deploy command', () => {
       const processKill = vi.spyOn(process, 'kill').mockReturnValue(true);
       const command = createDeployCommand({
         cwd: () => '/workspace',
+        runPreflight: () => ({
+          passed: true,
+          checks: [{ label: 'Preflight', passed: true }],
+        }),
         resolvePlan: () => [
           {
             label: 'stellar:deploy',

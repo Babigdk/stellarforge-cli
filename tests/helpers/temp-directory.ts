@@ -1,10 +1,17 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { GENERATED_WASM_ARTIFACT_PATH } from '../../src/deployment/project.js';
 
 export interface TempDirectoryFixture {
   readonly path: string;
   cleanup(): void;
+}
+
+export function writeGeneratedWasmArtifact(root: string): void {
+  const artifactPath = join(root, ...GENERATED_WASM_ARTIFACT_PATH.split('/'));
+  mkdirSync(dirname(artifactPath), { recursive: true });
+  writeFileSync(artifactPath, Buffer.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]));
 }
 
 export function createTempDirectoryFixture(

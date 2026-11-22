@@ -39,8 +39,11 @@ const ESCAPE = 0x1b;
 const CONTROL_SEQUENCE_INTRODUCER = 0x9b;
 const LEFT_SQUARE_BRACKET = 0x5b;
 const RIGHT_SQUARE_BRACKET = 0x5d;
+const LEFT_PAREN = 0x28;
+const RIGHT_PAREN = 0x29;
 const BEL = 0x07;
 const BACKSLASH = 0x5c;
+const MAX_CONTROL_SEQUENCE_LENGTH = 4096;
 
 function isTerminalControlCharacter(code: number): boolean {
   return (
@@ -59,8 +62,9 @@ function isBidiControlCharacter(code: number): boolean {
 
 function consumeCsiSequence(message: string, startIndex: number): number {
   let index = startIndex;
+  const limit = Math.min(message.length, startIndex + MAX_CONTROL_SEQUENCE_LENGTH);
 
-  while (index < message.length) {
+  while (index < limit) {
     const code = message.charCodeAt(index);
 
     if (code >= 0x40 && code <= 0x7e) {
@@ -70,13 +74,14 @@ function consumeCsiSequence(message: string, startIndex: number): number {
     index += 1;
   }
 
-  return index;
+  return limit;
 }
 
-function consumeOscSequence(message: string, startIndex: number): number {
+function consumeStringSequence(message: string, startIndex: number): number {
   let index = startIndex;
+  const limit = Math.min(message.length, startIndex + MAX_CONTROL_SEQUENCE_LENGTH);
 
-  while (index < message.length) {
+  while (index < limit) {
     const code = message.charCodeAt(index);
 
     if (code === BEL) {
@@ -90,13 +95,25 @@ function consumeOscSequence(message: string, startIndex: number): number {
     index += 1;
   }
 
-  return index;
+  return limit;
+}
+
+function isStringSequenceIntroducer(code: number): boolean {
+  return (
+    code === RIGHT_SQUARE_BRACKET ||
+    code === 0x50 ||
+    code === 0x58 ||
+    code === 0x5e ||
+    code === 0x5f
+  );
 }
 
 /**
- * Sanitizes untrusted terminal text by stripping ANSI CSI/OSC escape sequences
- * and terminal control characters (C0 and C1), removing carriage returns,
- * while preserving standard whitespace (tabs and newlines).
+ * Sanitizes untrusted terminal text by stripping terminal escape/control
+ * sequences and control characters (including NUL, CR, and backspace), while
+ * preserving ordinary printable Unicode and standard whitespace (tabs/newlines).
+ * Sequence parsing is bounded to keep handling of very long or repeated control
+ * sequences deterministic.
  */
 export function sanitizeTerminalText(message: string): string {
   let sanitized = '';
@@ -105,29 +122,46 @@ export function sanitizeTerminalText(message: string): string {
   while (index < message.length) {
     const code = message.charCodeAt(index);
 
-    if (
-      code === ESCAPE &&
-      message.charCodeAt(index + 1) === LEFT_SQUARE_BRACKET
-    ) {
-      index = consumeCsiSequence(message, index + 2);
-      continue;
-    }
-
-    if (
-      code === ESCAPE &&
-      message.charCodeAt(index + 1) === RIGHT_SQUARE_BRACKET
-    ) {
-      index = consumeOscSequence(message, index + 2);
-      continue;
-    }
-
     if (code === ESCAPE) {
-      index = index + 1 < message.length ? index + 2 : index + 1;
+      const next = message.charCodeAt(index + 1);
+
+      if (next === LEFT_SQUARE_BRACKET) {
+        index = consumeCsiSequence(message, index + 2);
+        continue;
+      }
+
+      if (isStringSequenceIntroducer(next)) {
+        index = consumeStringSequence(message, index + 2);
+        continue;
+      }
+
+      if (next === LEFT_PAREN || next === RIGHT_PAREN) {
+        index = index + 2 < message.length ? index + 3 : message.length;
+        continue;
+      }
+
+      if (!Number.isNaN(next)) {
+        index += 2;
+        continue;
+      }
+
+      index += 1;
       continue;
     }
 
     if (code === CONTROL_SEQUENCE_INTRODUCER) {
       index = consumeCsiSequence(message, index + 1);
+      continue;
+    }
+
+    if (
+      code === 0x90 ||
+      code === 0x9d ||
+      code === 0x98 ||
+      code === 0x9e ||
+      code === 0x9f
+    ) {
+      index = consumeStringSequence(message, index + 1);
       continue;
     }
 

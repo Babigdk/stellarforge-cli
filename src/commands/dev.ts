@@ -6,7 +6,7 @@ import {
 import { resolveDevProcessPlan, type DevProcessSpec } from '../dev/project.js';
 import { TerminalOutput } from '../output/terminal.js';
 import {
-  CANCElLATION_EXIT_CODE,
+  CANCELLATION_EXIT_CODE,
   createCancellationHandler,
 } from '../errors/boundary.js';
 
