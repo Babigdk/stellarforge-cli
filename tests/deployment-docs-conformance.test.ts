@@ -3,10 +3,16 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createDeployCommand } from '../src/commands/deploy.js';
 import { validateStellarForgeConfig } from '../src/config/schema.js';
-import { resolveTestnetDeploymentPlan } from '../src/deployment/project.js';
+import {
+  GENERATED_WASM_ARTIFACT_PATH,
+  resolveTestnetDeploymentPlan,
+} from '../src/deployment/project.js';
 import { createCapturedTerminalOutput } from './helpers/captured-output.js';
 import { FakeChildProcess } from './helpers/fake-child.js';
-import { withTempDirectory } from './helpers/temp-directory.js';
+import {
+  withTempDirectory,
+  writeGeneratedWasmArtifact,
+} from './helpers/temp-directory.js';
 
 const root = join(import.meta.dirname, '..');
 
@@ -30,6 +36,10 @@ const smartContractReadme = readFileSync(
   join(root, 'templates', 'smart-contract', 'README.md'),
   'utf8',
 );
+const fullStackContractsReadme = readFileSync(
+  join(root, 'templates', 'full-stack', 'contracts', 'README.md'),
+  'utf8',
+);
 
 const deploymentDocs = [
   { name: 'quick-start.md', content: quickStartDoc },
@@ -37,6 +47,10 @@ const deploymentDocs = [
   { name: 'configuration.md', content: configurationDoc },
   { name: 'troubleshooting.md', content: troubleshootingDoc },
   { name: 'templates/smart-contract/README.md', content: smartContractReadme },
+  {
+    name: 'templates/full-stack/contracts/README.md',
+    content: fullStackContractsReadme,
+  },
 ];
 
 describe('SW-103: Testnet deployment documentation conformance', () => {
@@ -200,6 +214,7 @@ describe('SW-103: Testnet deployment documentation conformance', () => {
             join(root, 'Cargo.toml'),
             '[workspace]\nmembers = []\n',
           );
+          writeGeneratedWasmArtifact(root);
           // Write default config so that commands without explicit flags can resolve
           writeFileSync(
             join(root, 'stellarforge.config.json'),
@@ -239,6 +254,7 @@ describe('SW-103: Testnet deployment documentation conformance', () => {
     it('verifies the plan generated from documented deployment examples matches the hardened Stellar CLI contract', () => {
       withTempDirectory((root) => {
         writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+        writeGeneratedWasmArtifact(root);
 
         const expectedCommand =
           process.platform === 'win32' ? 'stellar.exe' : 'stellar';
@@ -257,6 +273,8 @@ describe('SW-103: Testnet deployment documentation conformance', () => {
             args: [
               'contract',
               'deploy',
+              '--wasm',
+              GENERATED_WASM_ARTIFACT_PATH,
               '--source-account',
               'deployer',
               '--network',
@@ -280,6 +298,8 @@ describe('SW-103: Testnet deployment documentation conformance', () => {
             args: [
               'contract',
               'deploy',
+              '--wasm',
+              GENERATED_WASM_ARTIFACT_PATH,
               '--source-account',
               'release-deployer',
               '--network',
@@ -289,6 +309,63 @@ describe('SW-103: Testnet deployment documentation conformance', () => {
           },
         ]);
       });
+    });
+  });
+
+  describe('SW-143: reproducible Soroban build metadata documentation', () => {
+    const artifactReadmes = [
+      {
+        name: 'templates/smart-contract/README.md',
+        content: smartContractReadme,
+      },
+      {
+        name: 'templates/full-stack/contracts/README.md',
+        content: fullStackContractsReadme,
+      },
+    ];
+
+    it('documents the exact build command, Wasm target, artifact path, and troubleshooting', () => {
+      for (const { name, content } of artifactReadmes) {
+        expect(content, `${name} must document the build command`).toContain(
+          'stellar contract build',
+        );
+        expect(content, `${name} must document the Wasm target`).toContain(
+          'wasm32v1-none',
+        );
+        expect(
+          content,
+          `${name} must document the resolver artifact path`,
+        ).toContain(GENERATED_WASM_ARTIFACT_PATH);
+        expect(
+          content,
+          `${name} must document target remediation`,
+        ).toContain('rustup target add wasm32v1-none');
+        expect(
+          content,
+          `${name} must document missing artifact recovery`,
+        ).toContain('stellar contract build');
+      }
+    });
+
+    it('states that building the Wasm artifact does not require secrets', () => {
+      for (const { name, content } of artifactReadmes) {
+        expect(
+          content,
+          `${name} must state the no-secret build boundary`,
+        ).toMatch(/no secret|secrets/i);
+      }
+    });
+
+    it('keeps the documented artifact path aligned with the deployment resolver', () => {
+      expect(smartContractReadme).toContain(
+        `target/wasm32v1-none/release/stellarforge-starter-contract.wasm`,
+      );
+      expect(fullStackContractsReadme).toContain(
+        `target/wasm32v1-none/release/stellarforge-starter-contract.wasm`,
+      );
+      expect(GENERATED_WASM_ARTIFACT_PATH).toBe(
+        'target/wasm32v1-none/release/stellarforge-starter-contract.wasm',
+      );
     });
   });
 });

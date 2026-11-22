@@ -1,9 +1,13 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ValidationCliError } from '../src/errors/errors.js';
 import { createNpmInvocation } from '../src/process/npm.js';
-import { resolveDevProcessPlan } from '../src/dev/project.js';
+import {
+  resolveDevProcessPlan,
+  resolveProjectPath,
+  resolveProjectRoot,
+} from '../src/dev/project.js';
 import { withTempDirectory } from './helpers/index.js';
 
 describe('development project plan', () => {
@@ -154,5 +158,44 @@ describe('development project plan', () => {
       expect(() => resolveDevProcessPlan(root)).toThrow(
         'No supported development script',
       );
+    }));
+
+  it('uses one normalized project-root policy for relative and absolute paths', () => {
+    expect(resolveProjectRoot('.')).toBe(resolve('.'));
+    expect(resolveProjectRoot('workspace/nested/..')).toBe(
+      resolve('workspace'),
+    );
+  });
+
+  it('resolves relative manifest paths with either separator style', () => {
+    const root = resolve('workspace');
+
+    expect(resolveProjectPath(root, 'nested', 'package.json')).toBe(
+      join(root, 'nested', 'package.json'),
+    );
+    expect(resolveProjectPath(root, `nested${sep}package.json`)).toBe(
+      join(root, 'nested', 'package.json'),
+    );
+    expect(resolveProjectPath(root, 'nested/package.json')).toBe(
+      join(root, 'nested', 'package.json'),
+    );
+  });
+
+  it('keeps spaces and Unicode in the project path out of argv', () =>
+    withTempDirectory((root) => {
+      const projectRoot = join(root, 'project with spaces — Ünicode');
+      mkdirSync(projectRoot, { recursive: true });
+      writeFileSync(
+        join(projectRoot, 'package.json'),
+        JSON.stringify({ name: 'demo', scripts: { dev: 'node dev.js' } }),
+      );
+
+      const [spec] = resolveDevProcessPlan(projectRoot);
+
+      expect(spec?.cwd).toBe(projectRoot);
+      expect(spec?.command).not.toContain(projectRoot);
+      for (const arg of spec?.args ?? []) {
+        expect(arg).not.toContain(projectRoot);
+      }
     }));
 });

@@ -1,8 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { selectProjectRoot, type DevProcessSpec } from '../dev/project.js';
+import {
+  resolveProjectPath,
+  resolveProjectRoot,
+  type DevProcessSpec,
+} from '../dev/project.js';
 import { ValidationCliError } from '../errors/errors.js';
 import { createNpmInvocation } from '../process/npm.js';
+
+export { DETERMINISTIC_LOCALE_ENVIRONMENT } from '../dev/environment.js';
 
 interface ProjectPackage {
   readonly name?: unknown;
@@ -10,7 +15,7 @@ interface ProjectPackage {
 }
 
 function resolveNodeTestPlan(projectRoot: string): DevProcessSpec | undefined {
-  const packagePath = resolve(projectRoot, 'package.json');
+  const packagePath = resolveProjectPath(projectRoot, 'package.json');
 
   if (!existsSync(packagePath)) {
     return undefined;
@@ -66,7 +71,7 @@ function resolveNodeTestPlan(projectRoot: string): DevProcessSpec | undefined {
 }
 
 function resolveCargoTestPlan(projectRoot: string): DevProcessSpec | undefined {
-  if (!existsSync(resolve(projectRoot, 'Cargo.toml'))) {
+  if (!existsSync(resolveProjectPath(projectRoot, 'Cargo.toml'))) {
     return undefined;
   }
 

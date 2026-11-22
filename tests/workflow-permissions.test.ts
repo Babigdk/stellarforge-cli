@@ -49,3 +49,66 @@ describe('GHA least-privilege permissions audit (SW-105)', () => {
     ).toBe(true);
   });
 });
+
+describe('GKA artifact retention and permissions conformance audit (SW-178)', () => {
+  it('requires explicit retention-days on every artifact upload', () => {
+    const all = auditWorkflowDirectory(fixtures);
+    expect(
+      all.some(
+        (v) =>
+          v.file === 'artifact-bad-no-retention.yml' &&
+          /retention-days/.test(v.message),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects out-of-range retention periods', () => {
+    const all = auditWorkflowDirectory(fixtures);
+    expect(
+      all.some(
+        (v) =>
+          v.file === 'artifact-bad-retention-range.yml' &&
+          /retention-days/.test(v.message),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects artifact paths that include generated secrets or local env files', () => {
+    const all = auditWorkflowDirectory(fixtures);
+    expect(
+      all.some(
+        (v) =>
+          v.file === 'artifact-bad-secrets-path.yml' &&
+          /artifact path/.test(v.message),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects artifact paths that sweep the entire workspace', () => {
+    const all = auditWorkflowDirectory(fixtures);
+    expect(
+      all.some(
+        (v) =>
+          v.file === 'artifact-bad-workspace-yaml'.toLowerCase() &&
+          /artifact path/.test(v.message),
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects release artifact publishing from PR workflows', () => {
+    const all = auditWorkflowDirectory(fixtures);
+    expect(
+      all.some(
+        (v) =>
+          v.file === 'pr-bad-release-artifact.yml' &&
+          /release artifact/.test(v.message),
+      ),
+    ).toBe(true);
+  });
+
+  it('accepts a conformant artifact upload workflow', () => {
+    const all = auditWorkflowDirectory(fixtures);
+    const hits = all.filter((v) => v.file === 'artifact-ok.yml');
+    expect(hits).toEqual([]);
+  });
+});

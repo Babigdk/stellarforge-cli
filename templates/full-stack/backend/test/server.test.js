@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
-import { once } from 'node:events';
+import { EventEmitter, once } from 'node:events';
 import http from 'node:http';
 import test from 'node:test';
 import { startBackend } from '../src/start.js';
@@ -13,6 +13,10 @@ import {
   MAX_REQUEST_BODY_BYTES,
   validateBackendConfig,
 } from '../src/server.js';
+import {
+  createShutdownController,
+  SHUTDOWN_GRACE_MS,
+} from '../src/start.js';
 
 test('uses safe Testnet defaults without secrets', () => {
   const config = getBackendConfig({});

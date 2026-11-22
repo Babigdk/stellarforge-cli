@@ -39,6 +39,10 @@ describe('Smart Contract template', () => {
           join(projectRoot, 'contracts', 'hello', 'Cargo.toml'),
           'utf8',
         );
+        const contractTest = readFileSync(
+          join(projectRoot, 'contracts', 'hello', 'src', 'test.rs'),
+          'utf8',
+        );
         const readme = readFileSync(join(projectRoot, 'README.md'), 'utf8');
 
         expect(
@@ -47,17 +51,39 @@ describe('Smart Contract template', () => {
         expect(
           existsSync(join(projectRoot, 'contracts', 'hello', 'src', 'test.rs')),
         ).toBe(true);
+        // SW-145: gitignore is stored without the leading dot in the template
+        // so npm-packlist includes it. template-generation.ts remaps it to
+        // .gitignore in the generated project.
+        expect(
+          existsSync(join(projectRoot, '.gitignore')),
+          'generated project must contain .gitignore (remapped from template gitignore)',
+        ).toBe(true);
         expect(rootManifest).toContain('soroban-sdk = "26"');
+        expect(rootManifest).toContain('[workspace.package]');
+        expect(rootManifest).toContain('edition = "2021"');
+        expect(rootManifest).toContain('rust-version = "1.84.0"');
         expect(rootManifest).not.toContain('wasm32v1-none');
         expect(contractManifest).toContain(
           'name = "stellarforge-starter-contract"',
         );
         expect(contractManifest).not.toContain('demo.contract');
+        expect(contractTest).toContain('Env::default()');
+        expect(contractTest).toContain('DETERMINISTIC_LEDGER_SEQUENCE');
+        expect(contractTest).toContain('DETERMINISTIC_LEDGER_TIMESTAMP');
+        expect(contractTest).toContain('env.ledger().with_mut');
+        expect(contractTest).toContain('"StellarForge"');
+        expect(contractTest).not.toMatch(/https?:\/\//i);
+        expect(contractTest).not.toMatch(/soroban-testnet|horizon|rpc/i);
+        expect(contractTest).not.toMatch(/S[A-Z0-9]{55}/);
         expect(readme).toContain('# demo.contract');
         expect(readme).toContain('stellar contract build');
         expect(readme).toContain('stellar contract deploy');
         expect(readme).toContain('stellar contract invoke');
         expect(readme).toContain('--network testnet');
+        expect(readme).toContain('Rust 1.84.0');
+        expect(readme).toContain('Stellar CLI >=27.1.0');
+        expect(readme).toContain('wasm32v1-none');
+        expect(readme).toContain('soroban-sdk 26.x');
         expect(readme).not.toMatch(/S[A-Z0-9]{55}/);
         expect(captured.stdoutText()).toContain(
           'Created demo.contract from smart-contract',

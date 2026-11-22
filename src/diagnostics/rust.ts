@@ -12,10 +12,16 @@ function parseToolVersion(
   output: string,
   tool: 'rustc' | 'cargo',
 ): string | null {
-  const match = new RegExp(`^${tool} (\\d+\\.\\d+\\.\\d+)`, 'i').exec(
-    output.trim(),
-  );
-  return match?.[1] ?? null;
+  const match = new RegExp(
+    `^${tool} (\\d+)\\.(\\d+)\\.(\\d+)(?=$|[\\s(+-])`,
+    'i',
+  ).exec(output.trim());
+
+  if (!match) {
+    return null;
+  }
+
+  return `${match[1]}.${match[2]}.${match[3]}`;
 }
 
 export function createRustDiagnostic(

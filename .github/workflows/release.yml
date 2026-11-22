@@ -1,5 +1,8 @@
 name: Release
 
+# Artifact retention policy: release artifacts are short-lived and must not
+# accumulate in Actions storage. See tests/workflow-security.test.ts.
+
 on:
   push:
     branches:
@@ -11,6 +14,10 @@ permissions: {}
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
+
+# Retention for release-class artifacts (packed tarballs, publish plans).
+env:
+  RELEASE_ARTIFACT_RETENTION_DAYS: '7'
 
 jobs:
   select-mode:
@@ -45,6 +52,21 @@ jobs:
       - name: Select Changesets mode
         id: mode
         uses: changesets/action/select-mode@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          # Publish plans are release-class artifacts; keep them short-lived
+          # and exclude local environment/credential files from upload.
+          artifact-retention-days: ${{ env.RELEASE_ARTIFACT_RETENTION_DAYS }}
+          artifact-exclude-paths: |
+            .env
+            .env.*
+            **/.env
+            **/.env.*
+            **/credentials*
+            **/*.pem
+            **/*.key
+            node_modules
+            .cache
+            coverage
 
   version:
     name: Create or update release PR
@@ -120,6 +142,19 @@ jobs:
         uses: changesets/action/pack@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           publish-plan-artifact-id: ${{ needs.select-mode.outputs.publish-plan-artifact-id }}
+          # Packed tarballs are release-class artifacts with explicit retention.
+          artifact-retention-days: ${{ env.RELEASE_ARTIFACT_RETENTION_DAYS }}
+          artifact-exclude-paths: |
+            .env
+            .env.*
+            **/.env
+            **/.env.*
+            **/credentials*
+            **/*.pem
+            **/*.key
+            node_modules
+            .cache
+            coverage
 
   publish:
     name: Publish npm package and GitHub release
@@ -163,6 +198,9 @@ jobs:
           pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir-artifact-id }}
           create-github-releases: true
           push-git-tags: true
+          # Publication is gated to main pushes via select-mode; PR workflows
+          # never reach this job because select-mode only runs on push.
+          artifact-retention-days: ${{ env.RELEASE_ARTIFACT_RETENTION_DAYS }}
 
   publish-disabled:
     name: Publication disabled
@@ -213,3 +251,7 @@ jobs:
           npm run build
           npm run release:dry-run
           npm run changeset:status
+
+# Note: this workflow only triggers on push to main or workflow_dispatch.
+# PR workflows must not publish release artifacts; enforced by
+# tests/workflow-security.test.ts.

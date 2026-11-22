@@ -75,13 +75,24 @@ export interface DevProcessSpec {
   readonly cwd: string;
 }
 
+export function resolveProjectRoot(cwd: string): string {
+  return resolve(cwd);
+}
+
+export function resolveProjectPath(
+  projectRoot: string,
+  ...segments: readonly string[]
+): string {
+  return resolve(projectRoot, ...segments);
+}
+
 interface ProjectPackage {
   readonly name?: unknown;
   readonly scripts?: unknown;
 }
 
 function readProjectPackage(projectRoot: string): ProjectPackage {
-  const packagePath = resolve(projectRoot, 'package.json');
+  const packagePath = resolveProjectPath(projectRoot, 'package.json');
 
   if (!existsSync(packagePath)) {
     throw new ValidationCliError(

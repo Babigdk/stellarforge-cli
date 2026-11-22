@@ -51,9 +51,9 @@ function git(cwd: string, args: string[]) {
 
 describe('generated template .gitignore policy', () => {
   it('covers every bundled template registered by the CLI', () => {
-    expect(
-      readdirSync(join(repositoryRoot, 'templates')).sort(),
-    ).toEqual([...TEMPLATE_IDS].sort());
+    expect(readdirSync(join(repositoryRoot, 'templates')).sort()).toEqual(
+      [...TEMPLATE_IDS].sort(),
+    );
   });
 
   it.each(TEMPLATE_IDS)(
@@ -73,12 +73,21 @@ describe('generated template .gitignore policy', () => {
           ...LOCAL_FILES,
           ...(NODE_TEMPLATES.has(id) ? NODE_OUTPUT : []),
           ...(id === 'smart-contract' || id === 'full-stack'
-            ? ['target/debug/build.log', 'contracts/hello/target/debug/build.log']
+            ? [
+                'target/debug/build.log',
+                'contracts/hello/target/debug/build.log',
+              ]
             : []),
         ];
 
         for (const path of ignored) {
-          const result = git(root, ['check-ignore', '--no-index', '-q', '--', path]);
+          const result = git(root, [
+            'check-ignore',
+            '--no-index',
+            '-q',
+            '--',
+            path,
+          ]);
           expect(
             result.status,
             `${id}: expected ${path} to be ignored: ${result.stderr}`,
@@ -86,7 +95,13 @@ describe('generated template .gitignore policy', () => {
         }
 
         for (const path of TRACKABLE_FILES) {
-          const result = git(root, ['check-ignore', '--no-index', '-q', '--', path]);
+          const result = git(root, [
+            'check-ignore',
+            '--no-index',
+            '-q',
+            '--',
+            path,
+          ]);
           expect(
             result.status,
             `${id}: expected ${path} to remain trackable: ${result.stderr}`,

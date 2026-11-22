@@ -57,6 +57,38 @@ class DeployChild implements ManagedChildProcess {
 }
 
 describe('deploy command', () => {
+  it('runs preflight without spawning subprocesses or network calls', async () => {
+    const spawnProcess = vi.fn(() => new DeployChild());
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const captured = createCapturedTerminalOutput();
+    const command = createDeployCommand({
+      cwd: () => '/workspace',
+      output: captured.output,
+      runPreflight: () => ({
+        passed: true,
+        checks: [{ label: 'Preflight', passed: true }],
+      }),
+      resolvePlan: () => [],
+      spawnProcess,
+    });
+
+    await command.parseAsync([
+      'node',
+      'deploy',
+      '--network',
+      'testnet',
+      '--source',
+      'alice',
+      '--preflight',
+    ]);
+
+    expect(spawnProcess).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(captured.stdoutText()).toContain('Preflight');
+    expect(captured.stdoutText()).not.toContain('alice');
+    fetchSpy.mockRestore();
+  });
+
   it('forwards explicit Testnet and identity input to a safe deployment plan', async () => {
     const child = new DeployChild();
     const captured = createCapturedTerminalOutput();
@@ -70,6 +102,10 @@ describe('deploy command', () => {
     const command = createDeployCommand({
       cwd: () => '/workspace',
       output: captured.output,
+      runPreflight: () => ({
+        passed: true,
+        checks: [{ label: 'Preflight', passed: true }],
+      }),
       resolvePlan(input) {
         received = input;
         return [
@@ -118,6 +154,10 @@ describe('deploy command', () => {
     const child = new DeployChild();
     const command = createDeployCommand({
       cwd: () => '/workspace',
+      runPreflight: () => ({
+        passed: true,
+        checks: [{ label: 'Preflight', passed: true }],
+      }),
       resolvePlan: () => [
         {
           label: 'stellar:deploy',
@@ -157,6 +197,10 @@ describe('deploy command', () => {
       const processKill = vi.spyOn(process, 'kill').mockReturnValue(true);
       const command = createDeployCommand({
         cwd: () => '/workspace',
+        runPreflight: () => ({
+          passed: true,
+          checks: [{ label: 'Preflight', passed: true }],
+        }),
         resolvePlan: () => [
           {
             label: 'stellar:deploy',

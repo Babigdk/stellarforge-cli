@@ -14,6 +14,34 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /** Explicit per-job exceptions for workflows that must write. */
+const ARTIFACT_RETENTION_DAYS = {
+  test: 7,
+  coverage: 7,
+  security: 30,
+  release: 90,
+};
+
+/** Artifact path patterns that must never be uploaded. */
+const FORBIDDEN_ARTIFACT_PATTERNS = [
+  /\.env(\b|$)/i,
+  /(^|\/)\.env\./i,
+  /credentials/i,
+  /secrets?/i,
+  /(^|\/)\.npmrc$/i,
+  /(^|\/)\.netrc$/i,
+  /(^|\/)\.ssh(\/|$)/i,
+  /(^|\/)\.aws(\/|$)/i,
+  /(^|\/)\.git(\/|$)/i,
+  /(^|\/)\.cache(\/|$)/i,
+  /(^|\/)\.local(\/|$)/i,
+  /(^|\/)\.DS_Store$/i,
+];
+
+/** Workflows that may publish release artifacts. */
+const RELEASE_PUBLISHING_WORKFLOWS = new Set(['release.yml']);
+
+/** PR-triggered workflows must never publish release artifacts. */
+const PR_TRIGGER_PATTERN = /^on:\s*$|^[ ]{2}(pull_request|pull_request_target):/m;
 const JOB_PERMISSION_ALLOWLIST = {
   'release.yml': {
     version: new Set(['contents:write', 'pull-requests:write']),
@@ -108,6 +136,80 @@ function normalizePerm(key, value) {
   return `${key}:${value}`;
 }
 
+function extractArtifactUploads(text) {
+  const lines = text.split(/\r?\n/);
+  const uploads = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!/uses:\s*actions\/upload-artifact@/.test(line)) continue;
+    const upload = { line: i + 1, retention: null, paths: [], name: null };
+    let j = i + 1;
+    while (j < lines.length) {
+      const next = lines[j];
+      if (/^[ ]{0,6}-\s+uses:/.test(next) || /^[ ]{0,6}uses:\s*actions\//.test(next)) break;
+      const retention = next.match(/retention-days:\s*(\S+)/);
+      if (retention) upload.retention = retention[1];
+      const name = next.match(/^[ ]+name:\s*(\S+)/);
+      if (name && upload.name === null) upload.name = name[1];
+      const pathMatch = next.match(/^[ ]+path:\s*(\S+)/);
+      if (pathMatch) upload.paths.push(pathMatch[1]);
+      j++;
+    }
+    uploads.push(upload);
+  }
+  return uploads;
+}
+
+function auditArtifacts(filePath) {
+  const base = path.basename(filePath);
+  const text = fs.readFileSync(filePath, 'utf8');
+  const violations = [];
+  const uploads = extractArtifactUploads(text);
+  const isPrWorkflow = PR_TRIGGER_PATTERN.test(text);
+
+  for (const upload of uploads) {
+    if (upload.retention === null) {
+      violations.push({
+        file: base,
+        line: upload.line,
+        message: 'artifact upload missing explicit retention-days',
+      });
+    } else if (!/^\d+$/.test(upload.retention) || Number(upload.retention) <= 0) {
+      violations.push({
+        file: base,
+        line: upload.line,
+        message: `artifact upload has invalid retention-days: ${upload.retention}`,
+      });
+    }
+
+    for (const p of upload.paths) {
+      for (const pattern of FORBIDDEN_ARTIFACT_PATTERNS) {
+        if (pattern.test(p)) {
+          violations.push({
+            file: base,
+            line: upload.line,
+            message: `artifact path "${p}" may include secrets, env files, or local caches`,
+          });
+          break;
+        }
+      }
+    }
+
+    if (isPrWorkflow && !RELEASE_PUBLISHING_WORKFLOWS.has(base)) {
+      const name = upload.name || '';
+      if (/release/i.test(name)) {
+        violations.push({
+          file: base,
+          line: upload.line,
+          message: `PR workflow must not publish release artifact "${name}"`,
+        });
+      }
+    }
+  }
+
+  return violations;
+}
+
 function isElevated(permission) {
   if (permission === 'write-all') return true;
   if (permission === 'read-all' || permission === 'empty') return false;
@@ -165,7 +267,10 @@ function auditFile(filePath) {
 }
 
 export function auditWorkflowDirectory(dir) {
-  return listYamlFiles(dir).flatMap((file) => auditFile(file));
+  return listYamlFiles(dir).flatMap((file) => [
+    ...auditFile(file),
+    ...auditArtifacts(file),
+  ]);
 }
 
 // CLI

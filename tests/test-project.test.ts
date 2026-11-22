@@ -1,11 +1,18 @@
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join, resolve, sep } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { ValidationCliError } from '../src/errors/errors.js';
 import { createNpmInvocation } from '../src/process/npm.js';
 import { createTestCommand } from '../src/commands/test.js';
+import {
+  resolveProjectPath,
+  resolveProjectRoot,
+} from '../src/dev/project.js';
 import { resolveTestProcessPlan } from '../src/testing/project.js';
-import { createCapturedTerminalOutput, withTempDirectory } from './helpers/index.js';
+import {
+  createCapturedTerminalOutput,
+  withTempDirectory,
+} from './helpers/index.js';
 
 describe('project test workflow resolution', () => {
   it('resolves a Node.js test script without executing package script text directly', () =>
@@ -116,5 +123,44 @@ describe('project test workflow resolution', () => {
       expect(() => resolveTestProcessPlan(root)).toThrow(
         'does not define a test script',
       );
+    }));
+
+  it('shares the normalized project-root policy used by dev', () => {
+    expect(resolveProjectRoot('.')).toBe(resolve('.'));
+    expect(resolveProjectRoot('workspace/nested/..')).toBe(
+      resolve('workspace'),
+    );
+    expect(resolveProjectPath(resolve('workspace'), 'Cargo.toml')).toBe(
+      join(resolve('workspace'), 'Cargo.toml'),
+    );
+  });
+
+  it('resolves test manifests with either separator style', () => {
+    const root = resolve('workspace');
+
+    expect(resolveProjectPath(root, `nested${sep}Cargo.toml`)).toBe(
+      join(root, 'nested', 'Cargo.toml'),
+    );
+    expect(resolveProjectPath(root, 'nested/Cargo.toml')).toBe(
+      join(root, 'nested', 'Cargo.toml'),
+    );
+  });
+
+  it('keeps spaces and Unicode in the project path out of test argv', () =>
+    withTempDirectory((root) => {
+      const projectRoot = join(root, 'test project — Ünicode');
+      mkdirSync(projectRoot, { recursive: true });
+      writeFileSync(
+        join(projectRoot, 'package.json'),
+        JSON.stringify({ name: 'demo', scripts: { test: 'vitest run' } }),
+      );
+
+      const [spec] = resolveTestProcessPlan(projectRoot);
+
+      expect(spec?.cwd).toBe(projectRoot);
+      expect(spec?.command).not.toContain(projectRoot);
+      for (const arg of spec?.args ?? []) {
+        expect(arg).not.toContain(projectRoot);
+      }
     }));
 });

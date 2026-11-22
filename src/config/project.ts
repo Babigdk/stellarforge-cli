@@ -1,3 +1,4 @@
+import { TextDecoder } from 'node:util';
 import { existsSync, lstatSync, readFileSync, type Stats } from 'node:fs';
 import { resolve } from 'node:path';
 import { ValidationCliError } from '../errors/errors.js';
@@ -28,9 +29,7 @@ function abort(): never {
 }
 
 function isWhitespace(char: string | undefined): boolean {
-  return (
-    char === ' ' || char === '\t' || char === '\n' || char === '\r'
-  );
+  return char === ' ' || char === '\t' || char === '\n' || char === '\r';
 }
 
 function skipWhitespace(raw: string, index: number): number {
@@ -117,7 +116,7 @@ function decodeJsonString(
 
             chars.push(
               String.fromCodePoint(
-                0x10000 + ((code - 0xd800) << 10 | (low - 0xdc00)),
+                0x10000 + (((code - 0xd800) << 10) | (low - 0xdc00)),
               ),
             );
             position += 12;
@@ -145,6 +144,24 @@ function decodeJsonString(
 }
 
 const JSON_NUMBER_PREFIX = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
+
+const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+
+/**
+ * Decodes a config file strictly as UTF-8. Invalid byte sequences are
+ * rejected before JSON parsing so that corruption is never silently replaced
+ * with U+FFFD and never echoes raw bytes in the error message.
+ */
+function decodeUtf8(bytes: Buffer): string {
+  try {
+    return utf8Decoder.decode(bytes);
+  } catch (cause) {
+    throw new ValidationCliError(
+      'stellarforge.config.json is not valid UTF-8.',
+      { cause },
+    );
+  }
+}
 
 function scanValue(raw: string, index: number): number {
   const position = skipWhitespace(raw, index);
@@ -189,7 +206,9 @@ function scanValue(raw: string, index: number): number {
 
 function presentKeyMessage(key: string): string {
   const display =
-    key.length <= 64 ? JSON.stringify(key) : `${JSON.stringify(key.slice(0, 64))}...`;
+    key.length <= 64
+      ? JSON.stringify(key)
+      : `${JSON.stringify(key.slice(0, 64))}...`;
   return `stellarforge.config.json contains a duplicate key ${display}.`;
 }
 
@@ -327,14 +346,47 @@ export function loadProjectConfig(cwd: string): StellarForgeConfig | undefined {
   }
 
   let text: string;
+  let configBytes: Buffer;
 
   try {
-    text = readFileSync(configPath, 'utf8');
+    configBytes = readFileSync(configPath);
+    text = decodeUtf8(configBytes);
   } catch (error) {
+    if (error instanceof ValidationCliError) {
+      throw error;
+    }
+
     throw new ValidationCliError(
       'Unable to inspect stellarforge.config.json.',
       { cause: error },
     );
+  }
+
+  // Tolerate exactly one leading UTF-8 BOM (Windows editor convention). Count
+  // the BOM sequences in the raw bytes because `TextDecoder` collapses
+  // repeated BOMs and would otherwise hide a duplicated byte-order mark.
+  const hasBom =
+    configBytes.length >= 3 &&
+    configBytes[0] === 0xef &&
+    configBytes[1] === 0xbb &&
+    configBytes[2] === 0xbf;
+  const hasDoubleBom =
+    hasBom &&
+    configBytes.length >= 6 &&
+    configBytes[3] === 0xef &&
+    configBytes[4] === 0xbb &&
+    configBytes[5] === 0xbf;
+
+  if (hasDoubleBom) {
+    // Reject with the stable malformed-JSON error instead of letting the
+    // parser accept a duplicate byte-order mark.
+    throw new ValidationCliError('stellarforge.config.json is not valid JSON.');
+  }
+
+  if (text.charCodeAt(0) === 0xfeff) {
+    // TextDecoder consumes one BOM; this guards against a duplicated mark
+    // that survived as a second character.
+    text = text.slice(1);
   }
 
   assertNoDuplicateJsonKeys(text);

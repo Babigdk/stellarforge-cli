@@ -5,6 +5,7 @@ export const EXIT_CODES = {
   subprocess: 3,
   internal: 4,
   diagnostic: 5,
+  cancelled: 130,
 } as const;
 
 export type CliExitCode = (typeof EXIT_CODES)[keyof typeof EXIT_CODES];
@@ -45,6 +46,16 @@ export class InternalCliError extends CliError {
       'StellarForge encountered an internal error.',
       EXIT_CODES.internal,
       options,
+    );
+  }
+}
+
+export class ScaffoldingCancelledCliError extends CliError {
+  constructor() {
+    super(
+      'ScaffoldingCancelledCliError',
+      'Project scaffolding cancelled.',
+      EXIT_CODES.cancelled,
     );
   }
 }

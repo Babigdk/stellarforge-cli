@@ -36,7 +36,7 @@ Resolve it safely by either changing the port or stopping only a process you rec
    - Windows: `netstat -ano | findstr :3000` shows the owning PID; stop it with `taskkill /PID <pid> /T`;
    - macOS/Linux: `lsof -i :3000` shows the owning process; stop it with `kill <pid>`;
    - inspect what the process actually is first — handle only the one you started yourself, for example an earlier instance of this service;
-   - never kill arbitrary processes that happen to hold the port; avoid task-name kills such as `taskkill /IM node.exe`, broad `pkill` matching, and SIGKILL-style forced termination.
+   - never kill arbitrary processes that happen to hold the port; prefer the owning PID you found above (`taskkill /PID <pid>` or `kill <pid>`) and avoid killing by process name, broad `pkill` matching, or SIGKILL-style forced termination.
 
 The service never hops ports automatically; it always binds exactly the configured address and port, so collisions stay visible instead of hiding on a random port.
 
@@ -112,3 +112,7 @@ Production deployments must undergo a deployment-specific security review:
 - Terminate TLS with valid certificates and enable `Strict-Transport-Security` when served exclusively over HTTPS;
 - Review reverse proxy / API gateway forwarding, CORS policies, rate limiting, and request payload limits;
 - Align CSP headers with upstream application architecture where applicable.
+
+## Offline smoke coverage
+
+`npm start`, `npm run check`, and `npm test` are executed in a freshly generated temporary project. The `cp .env.example .env` line is a local shell step; the offline smoke test uses an equivalent temporary `.env` file and does not require `cp` to be installed. No Stellar CLI, signing identity, credential, or external network access is required.

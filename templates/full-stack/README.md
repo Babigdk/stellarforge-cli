@@ -45,6 +45,8 @@ The backend exposes `GET /health` and static frontend assets on `127.0.0.1:3000`
 
 The starter page checks `GET /health` once on load. Its live status region announces `checking backend`, `backend healthy`, or `backend unavailable` as text, so status is not conveyed by color alone. If the backend is unavailable, activate the **Retry backend status** button to try again; the button is disabled while a request is in flight, and the page never polls automatically.
 
+On `SIGINT` or `SIGTERM`, the backend stops accepting new connections, drains active requests for up to five seconds, and then closes remaining connections so a stuck request cannot keep the process alive. Repeated signals do not start a second shutdown.
+
 If the configured port is already in use, startup fails with a raw Node error such as:
 
 ```text
@@ -61,7 +63,7 @@ Resolve it safely by either changing the port or stopping only a process you rec
    - Windows: `netstat -ano | findstr :3000` shows the owning PID; stop it with `taskkill /PID <pid> /T`;
    - macOS/Linux: `lsof -i :3000` shows the owning process; stop it with `kill <pid>`;
    - inspect what the process actually is first — handle only the one you started yourself, for example an earlier instance of this backend;
-   - never kill arbitrary processes that happen to hold the port; avoid task-name kills such as `taskkill /IM node.exe`, broad `pkill` matching, and SIGKILL-style forced termination.
+   - never kill arbitrary processes that happen to hold the port; prefer the owning PID you found above (`taskkill /PID <pid>` or `kill <pid>`) and avoid killing by process name, broad `pkill` matching, or SIGKILL-style forced termination.
 
 The backend never hops ports automatically; it always binds exactly the configured port, which makes collisions visible instead of hiding on a random one. This starter targets Stellar Testnet only; it does not configure or claim Mainnet or hosted deployment support.
 
@@ -116,3 +118,7 @@ The generated starter page is dependency-free and intended to be usable with a k
 ## Contracts
 
 `contracts/` is intentionally a boundary rather than a fake production contract. Add reviewed Soroban code when the application domain is defined, or generate a dedicated StellarForge `smart-contract` starter for contract-focused work.
+
+## Offline smoke coverage
+
+`npm run check`, `npm test`, and `npm run start:backend` are executed in a freshly generated temporary project. The backend start command is probed on a local loopback port and then stopped by the smoke test; it never contacts a Stellar service. No Stellar CLI, signing identity, credential, or external network access is required.

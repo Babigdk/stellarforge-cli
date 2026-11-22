@@ -261,10 +261,7 @@ describe('template .env.example safety and drift (SW-195)', () => {
 
   it('never reflects sentinel secrets in api-service configuration errors', async () => {
     const moduleUrl = fileURLToPath(
-      new URL(
-        '../templates/api-service/src/config.js',
-        import.meta.url,
-      ),
+      new URL('../templates/api-service/src/config.js', import.meta.url),
     );
 
     const { getConfig } = (await import(moduleUrl)) as {

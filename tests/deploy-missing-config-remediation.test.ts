@@ -9,6 +9,7 @@ import { ValidationCliError } from '../src/errors/index.js';
 import {
   createCapturedTerminalOutput,
   withTempDirectory,
+  writeGeneratedWasmArtifact,
 } from './helpers/index.js';
 
 const NETWORK_REMEDIATION =
@@ -56,6 +57,7 @@ class FakeChild implements ManagedChildProcess {
 
 function writeCargoWorkspace(root: string): void {
   writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+  writeGeneratedWasmArtifact(root);
 }
 
 function writeConfig(root: string, value: unknown): void {

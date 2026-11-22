@@ -49,6 +49,7 @@ The presence of `mainnet` in the configuration schema does not authorize every c
 - configuration is loaded only from the current project root;
 - the file must be a regular file and must not be a symbolic link;
 - the MVP file-size limit is 64 KiB;
+- configuration is encoded as UTF-8 (a single leading byte-order mark is tolerated);
 - configuration is parsed as JSON and never executed;
 - duplicate object keys at any nesting level (including escaped-equivalent spellings) are rejected before schema validation, so no value can come from an ambiguous document;
 - malformed or invalid configuration produces actionable errors;
