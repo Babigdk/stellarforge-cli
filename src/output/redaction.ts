@@ -18,7 +18,7 @@ const URL_WITH_QUERY = /\b([a-z][a-z0-9+.-]*:\/\/[^\s"'<>?]*\?)([^\s"'<>]*)/gi;
  * URL userinfo passwords, and token-bearing URL query parameters.
  */
 function redactUrlQuery(query: string): string {
-  return query.replace(/([^?&#=]+)=([^&#]*)/g, (match, key, value) => {
+  return query.replace(/([^?&#=]+)=([^&#]*)/g, (match, key) => {
     if (!TOKEN_QUERY_KEY.test(String(key))) {
       return match;
     }

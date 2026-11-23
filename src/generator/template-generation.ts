@@ -16,7 +16,6 @@ import {
   ScaffoldingCancelledCliError,
   ValidationCliError,
 } from '../errors/errors.js';
-import { ValidationCliError } from '../errors/errors.js';
 import { resolveCliVersion } from '../version.js';
 import type {
   GenerationContext,
@@ -120,6 +119,8 @@ function assertNotCancelled(isCancelled?: () => boolean): void {
   if (isCancelled?.()) {
     throw new ScaffoldingCancelledCliError();
   }
+}
+
 /**
  * Measures the template tree before any file is written. Exceeding a documented
  * limit fails with a safe aggregate message that never embeds local paths or
@@ -507,6 +508,7 @@ export function generateProjectFromTemplate(
       'utf8',
     );
 
+    assertNotCancelled(options.isCancelled);
     renameSync(stagingRoot, destination);
   } catch (error) {
     rmSync(stagingRoot, { recursive: true, force: true });
