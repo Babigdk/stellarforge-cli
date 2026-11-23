@@ -47,6 +47,12 @@ describe('Full Stack template', () => {
           true,
         );
         expect(
+          existsSync(join(projectRoot, 'frontend', 'src', 'index.html')),
+        ).toBe(true);
+        expect(
+          existsSync(join(projectRoot, 'frontend', 'src', 'styles.css')),
+        ).toBe(true);
+        expect(
           existsSync(join(projectRoot, 'backend', 'src', 'server.js')),
         ).toBe(true);
         expect(existsSync(join(projectRoot, 'contracts', 'README.md'))).toBe(
@@ -69,6 +75,14 @@ describe('Full Stack template', () => {
         const test = runNpmScript(projectRoot, 'test');
         expect(test.status, test.stderr).toBe(0);
 
+        const starterMarkup = readFileSync(
+          join(projectRoot, 'frontend', 'src', 'index.html'),
+          'utf8',
+        );
+        expect(starterMarkup).toContain('role="status"');
+        expect(starterMarkup).toContain('aria-live="polite"');
+        expect(starterMarkup).toContain('Retry backend status');
+
         const generatedReadme = readFileSync(
           join(projectRoot, 'README.md'),
           'utf8',
@@ -77,6 +91,9 @@ describe('Full Stack template', () => {
         expect(generatedReadme).toContain('backend/');
         expect(generatedReadme).toContain('contracts/');
         expect(generatedReadme).toContain('no credentials');
+        expect(generatedReadme).toContain('/index.html');
+        expect(generatedReadme).toContain('Retry backend status');
+        expect(generatedReadme).toContain('before opening a socket');
         // Port-collision guidance (issue SW-196).
         expect(generatedReadme).toContain('EADDRINUSE');
         expect(generatedReadme).toContain('BACKEND_PORT');

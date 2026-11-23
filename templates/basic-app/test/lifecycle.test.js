@@ -1,4 +1,4 @@
-﻿import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
@@ -103,13 +103,8 @@ test('reports actionable startup failure and exits non-zero for invalid configur
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
-  let stdout = '';
   let stderr = '';
-  child.stdout.setEncoding('utf8');
   child.stderr.setEncoding('utf8');
-  child.stdout.on('data', (chunk) => {
-    stdout += chunk;
-  });
   child.stderr.on('data', (chunk) => {
     stderr += chunk;
   });

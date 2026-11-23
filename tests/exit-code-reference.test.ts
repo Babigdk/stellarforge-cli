@@ -37,6 +37,7 @@ describe('exit-code reference conformance', () => {
       subprocess: 3,
       internal: 4,
       diagnostic: 5,
+      cancelled: 130,
     });
   });
 

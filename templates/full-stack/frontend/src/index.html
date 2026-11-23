@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{projectName}} — Full Stack Starter</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <header class="app-header">
+      <h1>{{projectName}}</h1>
+      <p>Full Stack starter on Stellar Testnet</p>
+    </header>
+    <main id="main-content">
+      <section class="status-panel" aria-labelledby="status-heading">
+        <h2 id="status-heading">Backend status</h2>
+        <p
+          id="backend-status"
+          class="status status--loading"
+          data-state="loading"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          aria-busy="true"
+        >Status: checking backend...</p>
+        <button id="retry-backend" type="button" disabled>Retry backend status</button>
+      </section>
+    </main>
+    <footer>
+      <p>Local development only. No credentials are required.</p>
+    </footer>
+    <script type="module">
+      import { mountApp } from './app.js';
+      mountApp(document);
+    </script>
+  </body>
+</html>

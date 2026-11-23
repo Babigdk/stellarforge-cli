@@ -59,7 +59,8 @@ export function runDeploymentPreflight(
   });
 
   let identityOk = true;
-  let identityRemediation: string | undefined;
+  let identityRemediation =
+    'Pass `--source <identity>` with a valid named Stellar CLI identity alias.';
   try {
     validateIdentityAlias(input.source);
   } catch (error) {

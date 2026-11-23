@@ -104,12 +104,7 @@ describe('SW-161: deploy validation before subprocess side effects', () => {
         writeValidProject(root);
         writeConfig(root, config);
         expectZeroSubprocessSideEffects(
-          await runInvalidDeploy(root, [
-            '--network',
-            'testnet',
-            '--source',
-            'deployer',
-          ]),
+          await runInvalidDeploy(root, ['--source', 'deployer']),
         );
       });
     });
@@ -247,7 +242,7 @@ describe('SW-161: deploy validation before subprocess side effects', () => {
         writeConfig(root, config);
         const captured = createCapturedTerminalOutput();
         const child = new FakeChildProcess();
-        const executor = vi.fn(() => child);
+        const executor = vi.fn((_spec: DevProcessSpec) => child);
         const command = createDeployCommand({
           cwd: () => root,
           output: captured.output,

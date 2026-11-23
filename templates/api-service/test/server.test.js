@@ -562,7 +562,7 @@ test('malformed, oversized, and multi-value correlation ids are replaced', async
       await response.json();
     }
 
-    const headers = new Headers();
+    const headers = new globalThis.Headers();
     headers.append('x-correlation-id', 'first');
     headers.append('x-correlation-id', 'second');
     const repeated = await globalThis.fetch(

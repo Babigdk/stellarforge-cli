@@ -1,77 +1,34 @@
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { createBackendServer, getBackendConfig } from './server.js';
+import { fileURLToPath } from 'node:url';
+import {
+  createBackendServer,
+  getBackendConfig,
+  validateBackendConfig,
+} from './server.js';
 
-export const SHUTDOWN_GRACE_MS = 5_000;
-
-export function createShutdownController({
-  server,
-  gracePeriodMs = SHUTDOWN_GRACE_MS,
-  signalSource = globalThis.process,
-  setTimer = setTimeout,
-  clearTimer = clearTimeout,
-  exit = () => {},
-} = {}) {
-  let shutdownPromise;
-
-  const onSignal = () => {
-    void shutdown();
-  };
-
-  function shutdown() {
-    if (shutdownPromise) {
-      return shutdownPromise;
-    }
-
-    shutdownPromise = new Promise((resolveShutdown) => {
-      let settled = false;
-      let forceTimer;
-
-      const finish = () => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        clearTimer(forceTimer);
-        resolveShutdown();
-        exit(0);
-      };
-
-      forceTimer = setTimer(() => {
-        server.closeAllConnections?.();
-        finish();
-      }, gracePeriodMs);
-
-      try {
-        server.close(finish);
-      } catch {
-        finish();
-      }
-      server.closeIdleConnections?.();
-    });
-
-    return shutdownPromise;
-  }
-
-  signalSource.on('SIGINT', onSignal);
-  signalSource.on('SIGTERM', onSignal);
-
-  return shutdown;
-}
-
-export function startBackendServer(options = {}) {
-  const config = getBackendConfig();
-  const server = createBackendServer();
-  const shutdown = createShutdownController({ server, ...options });
-
-  server.listen(config.port, '127.0.0.1');
-
-  return { config, server, shutdown };
-}
-
-if (
-  process.argv[1] &&
-  pathToFileURL(resolve(process.argv[1])).href === import.meta.url
+export function startBackend(
+  env = globalThis.process.env,
+  listen = (server, port) => server.listen(port, '127.0.0.1'),
 ) {
-  startBackendServer();
+  const config = getBackendConfig(env);
+  validateBackendConfig(config);
+  const server = createBackendServer(env);
+  const listener = listen(server, config.port);
+
+  return { config, listener, server };
+}
+
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedDirectly) {
+  try {
+    startBackend();
+  } catch (error) {
+    console.error(
+      error instanceof Error ? error.message : 'Backend startup failed.',
+    );
+    process.exitCode = 1;
+  }
 }

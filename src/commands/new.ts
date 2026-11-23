@@ -87,8 +87,7 @@ export function createNewCommand(options: NewCommandOptions = {}): Command {
 
         if (cancelled) {
           throw new ScaffoldingCancelledCliError();
-          },
-        );
+        }
 
         if (signal.aborted) {
           throw signal.reason;

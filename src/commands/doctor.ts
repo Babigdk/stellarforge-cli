@@ -13,7 +13,9 @@ import type {
   DiagnosticReport,
   DiagnosticResult,
   DiagnosticSummary,
+  DiagnosticReportJSON,
 } from '../diagnostics/types.js';
+import { DIAGNOSTIC_SCHEMA_VERSION } from '../diagnostics/types.js';
 import { EXIT_CODES } from '../errors/errors.js';
 import { TerminalOutput } from '../output/terminal.js';
 
@@ -21,6 +23,7 @@ export interface DoctorCommandOptions {
   readonly checks?: readonly DiagnosticCheck[];
   readonly output?: TerminalOutput;
   readonly setExitCode?: (code: number) => void;
+  readonly json?: boolean;
 }
 
 // Exported bounds for diagnostic text rendering.
@@ -64,6 +67,27 @@ function formatResult(result: DiagnosticResult): string {
   const label = sanitizeText(result.label, MAX_LABEL_LENGTH);
   const message = sanitizeText(result.message, MAX_MESSAGE_LENGTH);
   return `[${result.status.toUpperCase()}] ${label}: ${message}`;
+}
+
+function renderJSONReport(report: DiagnosticReport): DiagnosticReportJSON {
+  return {
+    schemaVersion: DIAGNOSTIC_SCHEMA_VERSION,
+    checks: report.results.map((result) => ({
+      id: result.id,
+      label: result.label,
+      status: result.status,
+      message: sanitizeText(result.message, MAX_MESSAGE_LENGTH),
+      ...(result.remediation === undefined
+        ? {}
+        : { remediation: sanitizeText(result.remediation, MAX_REMEDIATION_LENGTH) }),
+    })),
+    summary: {
+      pass: report.summary.pass,
+      warn: report.summary.warn,
+      fail: report.summary.fail,
+      total: report.summary.total,
+    },
+  };
 }
 
 function formatOverallHealth(summary: DiagnosticSummary): string {
@@ -130,12 +154,22 @@ export function createDoctorCommand(
   const output = options.output ?? new TerminalOutput();
   const setExitCode =
     options.setExitCode ?? ((code) => (process.exitCode = code));
+  const isJsonMode = options.json ?? false;
 
   return new Command('doctor')
     .description('Check the local StellarForge development environment.')
-    .action(() => {
+    .option('--json', 'Output as JSON')
+    .action((cmdOptions) => {
       const report = runDiagnostics(checks);
-      renderDiagnosticReport(report, output);
+      const jsonMode = isJsonMode || cmdOptions.json;
+
+      if (jsonMode) {
+        const jsonReport = renderJSONReport(report);
+        console.log(JSON.stringify(jsonReport, null, 2));
+      } else {
+        renderDiagnosticReport(report, output);
+      }
+
       setExitCode(
         report.summary.fail > 0 ? EXIT_CODES.diagnostic : EXIT_CODES.success,
       );
