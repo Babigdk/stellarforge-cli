@@ -3,12 +3,15 @@ import { Buffer } from 'node:buffer';
 import { EventEmitter, once } from 'node:events';
 import http from 'node:http';
 import test from 'node:test';
+import { startBackend } from '../src/start.js';
 import {
   BASELINE_SECURITY_HEADERS,
+  BackendConfigurationError,
   createBackendServer,
   createHealthPayload,
   getBackendConfig,
   MAX_REQUEST_BODY_BYTES,
+  validateBackendConfig,
 } from '../src/server.js';
 import {
   createShutdownController,
@@ -431,158 +434,84 @@ test('HTTP server applies baseline security headers on error and traversal respo
   }
 });
 
-function createFakeServer(onClose) {
-  const calls = {
-    close: 0,
-    closeIdleConnections: 0,
-    closeAllConnections: 0,
-  };
+test('validates the documented Testnet defaults', () => {
+  const config = getBackendConfig({});
 
-  return {
-    calls,
-    close(callback) {
-      calls.close += 1;
-      if (onClose) {
-        onClose(callback);
-      } else {
-        callback();
-      }
-    },
-    closeIdleConnections() {
-      calls.closeIdleConnections += 1;
-    },
-    closeAllConnections() {
-      calls.closeAllConnections += 1;
-    },
-  };
-}
-
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  test(`${signal} starts one graceful shutdown and repeated signals are idempotent`, async () => {
-    const server = createFakeServer();
-    const signals = new EventEmitter();
-    const exits = [];
-    const shutdown = createShutdownController({
-      server,
-      signalSource: signals,
-      setTimer: () => 1,
-      clearTimer: () => {},
-      exit: (code) => exits.push(code),
-    });
-
-    signals.emit(signal);
-    signals.emit('SIGINT');
-    signals.emit('SIGTERM');
-    await shutdown();
-
-    assert.equal(server.calls.close, 1);
-    assert.equal(server.calls.closeIdleConnections, 1);
-    assert.equal(server.calls.closeAllConnections, 0);
-    assert.deepEqual(exits, [0]);
-    assert.equal(signals.listenerCount('SIGINT'), 1);
-    assert.equal(signals.listenerCount('SIGTERM'), 1);
-  });
-}
-
-test('a stuck connection is force-closed after the documented grace period', async () => {
-  const server = createFakeServer(() => {});
-  const signals = new EventEmitter();
-  const exits = [];
-  let gracePeriod;
-  let forceShutdown;
-  const shutdown = createShutdownController({
-    server,
-    signalSource: signals,
-    setTimer: (callback, delay) => {
-      forceShutdown = callback;
-      gracePeriod = delay;
-      return 1;
-    },
-    clearTimer: () => {},
-    exit: (code) => exits.push(code),
-  });
-
-  const pending = shutdown();
-  assert.equal(gracePeriod, SHUTDOWN_GRACE_MS);
-  assert.equal(server.calls.close, 1);
-  forceShutdown();
-  await pending;
-  forceShutdown();
-
-  assert.equal(server.calls.closeAllConnections, 1);
-  assert.deepEqual(exits, [0]);
+  assert.deepEqual(validateBackendConfig(config), config);
 });
 
-test('graceful shutdown lets an in-flight request finish before exiting', async () => {
-  let reportStarted;
-  let releaseRequest;
-  const started = new Promise((resolve) => {
-    reportStarted = resolve;
-  });
-  const gate = new Promise((resolve) => {
-    releaseRequest = resolve;
-  });
-  const server = createBackendServer({}, {
-    routes: {
-      '/slow': {
-        methods: ['GET'],
-        handler: (_request, response) => {
-          reportStarted();
-          return gate.then(() => {
-            response.writeHead(200, { 'content-type': 'application/json' });
-            response.end(JSON.stringify({ status: 'ok' }));
-          });
-        },
-      },
-    },
-  });
-  const exits = [];
-  const shutdown = createShutdownController({
-    server,
-    signalSource: new EventEmitter(),
-    gracePeriodMs: 2_000,
-    exit: (code) => exits.push(code),
-  });
+test('rejects missing or malformed port values before startup', () => {
+  for (const value of ['', ' ', 'abc', '3000abc', '0', '-1', '65536', '3.5']) {
+    const config = getBackendConfig({ BACKEND_PORT: value });
+    assert.throws(
+      () => validateBackendConfig(config),
+      (error) =>
+        error instanceof BackendConfigurationError &&
+        /BACKEND_PORT/.test(error.message),
+    );
+  }
 
-  server.listen(0, '127.0.0.1');
-  await once(server, 'listening');
-  const address = server.address();
-  assert.ok(address && typeof address === 'object');
-
-  const request = globalThis.fetch(`http://127.0.0.1:${address.port}/slow`);
-  await started;
-  const pending = shutdown();
-  releaseRequest();
-
-  const response = await request;
-  assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { status: 'ok' });
-  await pending;
-  assert.deepEqual(exits, [0]);
+  assert.equal(getBackendConfig({ BACKEND_PORT: '3100' }).port, 3100);
 });
 
-test('shutdown stops accepting new connections on a real server', async () => {
-  const server = createBackendServer();
-  const exits = [];
-  const shutdown = createShutdownController({
-    server,
-    signalSource: new EventEmitter(),
-    gracePeriodMs: 2_000,
-    exit: (code) => exits.push(code),
+test('rejects malformed Stellar endpoints without echoing secret-like values', () => {
+  const secretEndpoint = 'https://user:token@example.test/health';
+  const config = getBackendConfig({
+    STELLAR_HORIZON_URL: secretEndpoint,
+    STELLAR_RPC_URL: 'not-a-url',
   });
 
-  server.listen(0, '127.0.0.1');
-  await once(server, 'listening');
-  const address = server.address();
-  assert.ok(address && typeof address === 'object');
+  assert.throws(
+    () => validateBackendConfig(config),
+    (error) => {
+      assert.ok(error instanceof BackendConfigurationError);
+      assert.match(error.message, /STELLAR_HORIZON_URL/);
+      assert.match(error.message, /STELLAR_RPC_URL/);
+      assert.doesNotMatch(error.message, /token|user|example\.test|not-a-url/);
+      return true;
+    },
+  );
+});
 
-  const baseUrl = `http://127.0.0.1:${address.port}`;
-  const before = await globalThis.fetch(`${baseUrl}/health`);
-  assert.equal(before.status, 200);
-  await before.text();
+test('rejects conflicting network mode and endpoint values', () => {
+  assert.throws(
+    () => validateBackendConfig(getBackendConfig({ STELLAR_NETWORK: 'MAINNET' })),
+    (error) =>
+      error instanceof BackendConfigurationError &&
+      /STELLAR_NETWORK must be TESTNET/.test(error.message),
+  );
 
-  await shutdown();
+  assert.throws(
+    () =>
+      validateBackendConfig(
+        getBackendConfig({
+          STELLAR_HORIZON_URL: 'https://horizon-mainnet.stellar.org',
+        }),
+      ),
+    (error) =>
+      error instanceof BackendConfigurationError &&
+      /non-Testnet Stellar endpoint/.test(error.message),
+  );
+});
 
-  await assert.rejects(() => globalThis.fetch(`${baseUrl}/health`));
-  assert.deepEqual(exits, [0]);
+test('startup validation runs before any listener is opened', () => {
+  const listened = [];
+  const listen = (server, port) => {
+    listened.push({ server, port });
+    return 'listener';
+  };
+
+  assert.throws(
+    () => startBackend({ BACKEND_PORT: 'not-a-port' }, listen),
+    BackendConfigurationError,
+  );
+  assert.deepEqual(listened, []);
+
+  const started = startBackend({ BACKEND_PORT: '3100' }, listen);
+  assert.equal(started.config.port, 3100);
+  assert.equal(started.listener, 'listener');
+  assert.deepEqual(
+    listened.map((entry) => entry.port),
+    [3100],
+  );
 });

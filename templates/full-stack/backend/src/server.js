@@ -27,13 +27,115 @@ export const STATIC_MIME_TYPES = Object.freeze({
   '.ico': 'image/x-icon',
 });
 
+export const BACKEND_DEFAULTS = Object.freeze({
+  network: 'TESTNET',
+  horizonUrl: 'https://horizon-testnet.stellar.org',
+  rpcUrl: 'https://soroban-testnet.stellar.org',
+  port: 3000,
+});
+
+const SUPPORTED_NETWORK = 'TESTNET';
+const NON_TESTNET_HOST_PATTERN = /(?:^|[.-])(mainnet|pubnet|public)(?:[.-]|$)/i;
+
+export class BackendConfigurationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'BackendConfigurationError';
+  }
+}
+
+function parsePort(value) {
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    return Number.NaN;
+  }
+
+  const text = String(value).trim();
+  if (!/^\d+$/.test(text)) {
+    return Number.NaN;
+  }
+
+  const port = Number(text);
+  return port >= 1 && port <= 65535 ? port : Number.NaN;
+}
+
+function parseEndpoint(name, value, errors) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    errors.push(`${name} must be an absolute http(s) URL.`);
+    return undefined;
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    errors.push(`${name} must be an absolute http(s) URL.`);
+    return undefined;
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    errors.push(`${name} must use http or https.`);
+  }
+  if (parsed.username.length > 0 || parsed.password.length > 0) {
+    errors.push(`${name} must not contain embedded credentials.`);
+  }
+  if (parsed.hostname.length === 0) {
+    errors.push(`${name} must include a host.`);
+  }
+
+  return parsed;
+}
+
+export function validateBackendConfig(config) {
+  const errors = [];
+  const network =
+    typeof config?.network === 'string'
+      ? config.network.trim().toUpperCase()
+      : '';
+
+  if (
+    !Number.isInteger(config?.port) ||
+    config.port < 1 ||
+    config.port > 65535
+  ) {
+    errors.push('BACKEND_PORT must be a decimal integer from 1 to 65535.');
+  }
+  if (network !== SUPPORTED_NETWORK) {
+    errors.push('STELLAR_NETWORK must be TESTNET for this starter.');
+  }
+
+  const endpoints = [
+    ['STELLAR_HORIZON_URL', config?.horizonUrl],
+    ['STELLAR_RPC_URL', config?.rpcUrl],
+  ];
+
+  for (const [name, value] of endpoints) {
+    const parsed = parseEndpoint(name, value, errors);
+    if (
+      parsed &&
+      network === SUPPORTED_NETWORK &&
+      NON_TESTNET_HOST_PATTERN.test(parsed.hostname)
+    ) {
+      errors.push(
+        `${name} points to a non-Testnet Stellar endpoint; this starter supports TESTNET only.`,
+      );
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new BackendConfigurationError(
+      `Invalid Full Stack backend configuration:\n- ${errors.join('\n- ')}`,
+    );
+  }
+
+  return config;
+}
+
 export function getBackendConfig(env = globalThis.process.env) {
   return {
-    network: env.STELLAR_NETWORK ?? 'TESTNET',
-    horizonUrl:
-      env.STELLAR_HORIZON_URL ?? 'https://horizon-testnet.stellar.org',
-    rpcUrl: env.STELLAR_RPC_URL ?? 'https://soroban-testnet.stellar.org',
-    port: Number.parseInt(env.BACKEND_PORT ?? '3000', 10),
+    network: env.STELLAR_NETWORK ?? BACKEND_DEFAULTS.network,
+    horizonUrl: env.STELLAR_HORIZON_URL ?? BACKEND_DEFAULTS.horizonUrl,
+    rpcUrl: env.STELLAR_RPC_URL ?? BACKEND_DEFAULTS.rpcUrl,
+    port: parsePort(env.BACKEND_PORT ?? BACKEND_DEFAULTS.port),
   };
 }
 

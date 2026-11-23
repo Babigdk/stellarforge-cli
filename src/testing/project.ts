@@ -84,7 +84,7 @@ function resolveCargoTestPlan(projectRoot: string): DevProcessSpec | undefined {
 }
 
 export function resolveTestProcessPlan(cwd: string): readonly DevProcessSpec[] {
-  const projectRoot = resolveProjectRoot(cwd);
+  const projectRoot = selectProjectRoot(cwd, 'test');
   const nodePlan = resolveNodeTestPlan(projectRoot);
 
   if (nodePlan !== undefined) {
@@ -97,6 +97,6 @@ export function resolveTestProcessPlan(cwd: string): readonly DevProcessSpec[] {
   }
 
   throw new ValidationCliError(
-    'No supported StellarForge test workflow was found. Expected a package.json test script or a Cargo.toml workspace.',
+    'No supported StellarForge test workflow was found. Run `stellarforge test` from the generated project root or a nested directory inside it. Expected a package.json test script or a Cargo.toml workspace.',
   );
 }

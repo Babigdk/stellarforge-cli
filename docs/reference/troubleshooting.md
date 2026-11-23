@@ -112,6 +112,8 @@ Selection follows that order, and a candidate only wins when its value is a non-
 
 If the selected npm process starts and then fails, StellarForge returns subprocess exit category `3`.
 
+You may invoke `stellarforge dev` from the project root or a nested directory. Discovery stops at the filesystem root, a `.git` boundary, or the generated `.stellarforge.json` marker, and examines at most eight parent directories. If more than one project root is found, run the command from the single generated project root; nested workspaces are not supported.
+
 See the [`dev` command reference](commands.md#stellarforge-dev).
 
 ## `stellarforge test` cannot find a workflow
@@ -124,6 +126,8 @@ A supported test project must have either:
 Node.js projects are run through `npm run test`; Cargo projects are run through `cargo test`.
 
 A failing project test is preserved as a subprocess failure instead of being converted to success.
+
+You may invoke `stellarforge test` from the project root or a nested directory. Discovery is bounded by the filesystem root, a `.git` boundary, or the generated `.stellarforge.json` marker, and examines at most eight parent directories. If more than one project root is found, run the command from the single generated project root.
 
 See the [`test` command reference](commands.md#stellarforge-test).
 
