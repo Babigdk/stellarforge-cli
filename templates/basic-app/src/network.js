@@ -6,7 +6,7 @@ export const SUPPORTED_NETWORKS = Object.freeze({
   testnet: Object.freeze({
     horizonUrl: DEFAULT_HORIZON_URL,
     rpcUrl: DEFAULT_RPC_URL,
-    networkPassphrase: DEFAULT_NETWORK_PASSPHRASE,
+    networkPassphrase: DEFAULT_NETWORK_PASSTHRASE,
   }),
   local: Object.freeze({
     horizonUrl: 'http://127.0.0.1:8000',
@@ -62,7 +62,7 @@ function validateEndpoint(label, value) {
 
   let parsed;
   try {
-    parsed = new URL(trimmed);
+    parsed = new globalThis.URL(trimmed);
   } catch {
     // Do not echo the input: URLs may contain credentials.
     throw new TypeError(`${label} is not a valid URL.`);

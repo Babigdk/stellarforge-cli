@@ -80,15 +80,20 @@ describe('Rust diagnostic', () => {
   it.each([
     ['empty output', result(0, '')],
     ['missing release segment', result(0, 'rustc 1.84\n')],
+    ['truncated patch component', result(0, 'rustc 1.84.\n')],
     ['non-numeric version', result(0, 'rustc a.b.c\n')],
     ['binary garbage', result(0, '\u0000\u0001rustc ?\n')],
     ['no version prefix', result(0, '1.84.0\n')],
+    ['extra tokens after version', result(0, 'rustc 1.84.0 extra\n')],
+    ['extra numeric component', result(0, 'rustc 1.84.0.1\n')],
+    ['unsafe integer component', result(0, 'rustc 9007199254740992.0.0\n')],
   ])('rejects malformed rustc fixture: %s', (_label, outcome) => {
     const execute: RunCommand = () => outcome;
 
     const diagnostic = createRustDiagnostic(execute).run();
 
     expect(diagnostic.status).toBe('fail');
+    expect(diagnostic.message).toBe('Rust returned an unrecognized version.');
     expect(JSON.stringify(diagnostic)).not.toContain('\u0000');
   });
 
@@ -188,7 +193,11 @@ describe('Cargo diagnostic', () => {
   it.each([
     ['empty output', result(0, '')],
     ['missing release segment', result(0, 'cargo 1.89\n')],
+    ['truncated patch component', result(0, 'cargo 1.89.\n')],
     ['no version prefix', result(0, '1.89.0 (c24e10642 2025-06-23)\n')],
+    ['extra tokens after version', result(0, 'cargo 1.89.0 extra\n')],
+    ['extra numeric component', result(0, 'cargo 1.89.0.1\n')],
+    ['unsafe integer component', result(0, 'cargo 9007199254740992.0.0\n')],
   ])('rejects malformed cargo fixture: %s', (_label, outcome) => {
     const execute: RunCommand = () => outcome;
 

@@ -1,8 +1,14 @@
 import { spawn } from 'node:child_process';
 import { SubprocessCliError, ValidationCliError } from '../errors/errors.js';
-import { redactSecretLikeText } from '../output/redaction.js';
+import {
+  REDACTED_PLACEHOLDER,
+  redactSecretLikeText,
+} from '../output/redaction.js';
 import { TerminalOutput } from '../output/terminal.js';
-import { buildSafeChildEnvironment } from './environment.js';
+import {
+  buildSafeChildEnvironment,
+  collectRedactableEnvironmentValues,
+} from './environment.js';
 import type { DevProcessSpec } from './project.js';
 
 interface ManagedStream {
@@ -79,7 +85,22 @@ function signalChildTree(
         stdio: 'ignore',
         windowsHide: true,
       });
-      killer.once('error', () => child.kill(signal));
+      let fellBack = false;
+      const fallback = (): void => {
+        if (fellBack) {
+          return;
+        }
+
+        fellBack = true;
+        child.kill(signal);
+      };
+
+      killer.once('error', fallback);
+      killer.once('close', (code) => {
+        if (code !== 0) {
+          fallback();
+        }
+      });
     } catch {
       child.kill(signal);
     }
@@ -94,6 +115,24 @@ function signalChildTree(
 }
 
 const MAX_BUFFERED_LINE_LENGTH = 64 * 1024;
+
+function createEnvironmentValueRedactor(
+  values: readonly string[],
+): (line: string) => string {
+  if (values.length === 0) {
+    return (line) => line;
+  }
+
+  return (line) => {
+    let redacted = line;
+
+    for (const value of values) {
+      redacted = redacted.split(value).join(REDACTED_PLACEHOLDER);
+    }
+
+    return redacted;
+  };
+}
 
 // Upper bound on complete lines queued for a single child stream while its
 // destination is backpressured. A noisy child can otherwise outpace a slow or
@@ -182,6 +221,7 @@ function createPrefixedLineWriter(
   label: string,
   isError: boolean,
   childStream: ManagedStream,
+  redactEnvironmentValues: (line: string) => string,
 ): PrefixedLineWriter {
   let pending = '';
   let ended = false;
@@ -216,7 +256,9 @@ function createPrefixedLineWriter(
       return;
     }
 
-    forwarder.push(`[${label}] ${redactSecretLikeText(line)}`);
+    forwarder.push(
+      `[${label}] ${redactSecretLikeText(redactEnvironmentValues(line))}`,
+    );
   };
 
   // Splits decoded text into complete lines, keeping the trailing partial
@@ -278,14 +320,19 @@ export async function superviseDevProcesses(
   }
 
   const output = options.output ?? new TerminalOutput();
-  const environment = buildSafeChildEnvironment(
-    options.environment ?? process.env,
+  const sourceEnvironment = options.environment ?? process.env;
+  const environment = buildSafeChildEnvironment(sourceEnvironment);
+  const redactEnvironmentValues = createEnvironmentValueRedactor(
+    collectRedactableEnvironmentValues(sourceEnvironment),
   );
   const spawnProcess = options.spawnProcess ?? defaultSpawnProcess;
   const signalSource = options.signalSource ?? process;
   const children: ManagedChildProcess[] = [];
+  const exitedChildren = new Set<ManagedChildProcess>();
+  const terminationGraceMs = options.terminationGraceMs ?? 5_000;
   let shuttingDown = false;
   let timedOut = false;
+  let settleShutdown: () => void = () => {};
   let timeoutTimer: NodeJS.Timeout | undefined;
   let escalationTimer: NodeJS.Timeout | undefined;
   let timeoutSettlementTimer: NodeJS.Timeout | undefined;
@@ -296,8 +343,15 @@ export async function superviseDevProcesses(
     clearTimeout(timeoutSettlementTimer);
   };
 
-  const signalChildren = (signal: NodeJS.Signals): void => {
+  const signalChildren = (
+    signal: NodeJS.Signals,
+    activeOnly = false,
+  ): void => {
     for (const child of children) {
+      if (activeOnly && exitedChildren.has(child)) {
+        continue;
+      }
+
       signalChildTree(child, signal);
     }
   };
@@ -309,6 +363,19 @@ export async function superviseDevProcesses(
 
     shuttingDown = true;
     signalChildren(signal);
+
+    if (children.length === 0) {
+      return;
+    }
+
+    clearTimeout(escalationTimer);
+    escalationTimer = setTimeout(() => {
+      signalChildren('SIGKILL', true);
+      clearTimeout(timeoutSettlementTimer);
+      timeoutSettlementTimer = setTimeout(() => {
+        settleShutdown();
+      }, terminationGraceMs);
+    }, terminationGraceMs);
   };
 
   const handleSigint = (): void => stopChildren('SIGINT');
@@ -327,13 +394,25 @@ export async function superviseDevProcesses(
       );
 
       const finishTimeout = (): void => {
+        clearTimers();
+
         if (settled) {
           return;
         }
 
         settled = true;
-        clearTimers();
         reject(timeoutError);
+      };
+
+      settleShutdown = () => {
+        clearTimers();
+
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        resolve();
       };
 
       interface ChildState {
@@ -354,7 +433,6 @@ export async function superviseDevProcesses(
         }
 
         settled = true;
-        clearTimers();
         // Signal siblings for cleanup but leave still-open streams alone: a
         // later flush there could emit half of a sensitive assignment. Any
         // pending line stays bounded in the writer until its stream ends.
@@ -427,12 +505,14 @@ export async function superviseDevProcesses(
             spec.label,
             false,
             child.stdout,
+            redactEnvironmentValues,
           ),
           stderrWriter: createPrefixedLineWriter(
             output,
             spec.label,
             true,
             child.stderr,
+            redactEnvironmentValues,
           ),
           stdoutDone: false,
           stderrDone: false,
@@ -483,6 +563,7 @@ export async function superviseDevProcesses(
           fail(`Development process '${spec.label}' failed to start.`, error);
         });
         child.once('exit', (code, signal) => {
+          exitedChildren.add(child);
           state.exited = true;
           state.exitCode = code;
           state.exitSignal = signal;
@@ -497,13 +578,8 @@ export async function superviseDevProcesses(
           }
 
           timedOut = true;
-          shuttingDown = true;
-          signalChildren('SIGTERM');
-          const graceMs = options.terminationGraceMs ?? 5_000;
-          escalationTimer = setTimeout(() => {
-            signalChildren('SIGKILL');
-            timeoutSettlementTimer = setTimeout(finishTimeout, graceMs);
-          }, graceMs);
+          settleShutdown = finishTimeout;
+          stopChildren('SIGTERM');
         }, options.timeoutMs);
       }
     });

@@ -6,30 +6,101 @@ import { CliError, EXIT_CODES, type CliExitCode } from './errors.js';
 const UNEXPECTED_ERROR_MESSAGE =
   'StellarForge encountered an unexpected error.';
 
-// Standardised user-interrupt (SIGINT/Ctrl-C) cancellation message.
-// This is the documented user-facing text for a clean cancellation.
 export const CANCELLATION_MESSAGE = 'Cancelled.';
 
-// Documented message for the forced-exit path taken when a second
-// interrupt signal arrives while cleanup is still in progress.
 export const FORCED_EXIT_MESSAGE =
   'Received a second interrupt signal; forcing exit.';
 
-// Documented non-zero exit code reported for a clean user-interrupt
-// cancellation. 130 is the conventional 128+SIGINT shell code.
-export const CANCElLATION_EXIT_CODE: CliExitCode = 130;
+export const CANCELLATION_EXIT_CODE: CliExitCode = EXIT_CODES.cancelled;
+
+export class CancellationCliError extends CliError {
+  constructor(command: string, options?: ErrorOptions) {
+    super(
+      'CancellationCliError',
+      CANCELLATION_MESSAGE,
+      EXIT_CODES.cancelled,
+      options,
+    );
+    this.command = command;
+  }
+
+  readonly command: string;
+}
+
+interface CancellationEventSource {
+  on(event: string, listener: () => void): unknown;
+  removeListener(event: string, listener: () => void): unknown;
+}
+
+const cancellationEvents =
+  process as unknown as CancellationEventSource;
+
+export interface CancellationController {
+  begin(): AbortSignal;
+  end(): void;
+}
+
+export function createCancellationController(): CancellationController {
+  let controller: AbortController | undefined;
+  let listener: (() => void) | undefined;
+
+  return {
+    begin(): AbortSignal {
+      controller = new AbortController();
+      listener = () => {
+        controller?.abort(new CancellationCliError('new'));
+      };
+      cancellationEvents.on('cancellationRequested', listener);
+      return controller.signal;
+    },
+
+    end(): void {
+      if (listener) {
+                cancellationEvents.removeListener(
+          'cancellationRequested',
+          listener,
+        );
+      }
+      listener = undefined;
+      controller = undefined;
+    },
+  };
+}
+
+export interface CancellationHandler {
+  isCancelled(): boolean;
+  reportCancellation(): void;
+  dispose(): void;
+}
+
+export function createCancellationHandler(_options: {
+  command: string;
+  output: TerminalOutput;
+}): CancellationHandler {
+  let cancelled = false;
+
+  const listener = (): void => {
+    cancelled = true;
+  };
+
+  cancellationEvents.on('cancellationRequested', listener);
+
+  return {
+    isCancelled: () => cancelled,
+
+    // The CLI signal handler already prints the cancellation message.
+    reportCancellation: () => undefined,
+
+    dispose(): void {
+      cancellationEvents.removeListener('cancellationRequested', listener);
+    },
+  };
+}
 
 export interface CliErrorBoundaryOptions {
-  // Opt-in diagnostic detail for maintainers: normal user-facing errors stay
-  // a clean one-line message, but with this set the underlying stack (or
-  // cause) is also reported. Never enabled by default so published builds
-  // never surface it unless a developer explicitly asks for it.
   readonly debug?: boolean;
 }
 
-// Recognises the `DEBUG` env var convention (`DEBUG=stellarforge`,
-// `DEBUG=stellarforge:*`, or `DEBUG=*`) as the opt-in for CLI stack-trace
-// diagnostics, without pulling in a logging dependency for it.
 export function isDebugEnabled(value: string | undefined): boolean {
   if (!value) {
     return false;
@@ -58,12 +129,12 @@ function reportDebugDetail(
 
   const text =
     detail instanceof Error ? (detail.stack ?? detail.message) : String(detail);
-  // redactSecretLikeText matches sensitive-assignment patterns up to the end
-  // of its input, so a multi-line stack must be redacted line by line.
+
   const redacted = text
     .split('\n')
     .map((line) => redactSecretLikeText(line))
     .join('\n');
+
   output.error(`[debug] ${redacted}`);
 }
 
@@ -76,6 +147,10 @@ export function handleCliError(
     return error.exitCode === EXIT_CODES.success
       ? EXIT_CODES.success
       : EXIT_CODES.validation;
+  }
+
+  if (error instanceof CancellationCliError) {
+    return EXIT_CODES.cancelled;
   }
 
   if (error instanceof CliError) {

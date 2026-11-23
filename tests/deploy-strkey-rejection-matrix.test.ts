@@ -34,7 +34,10 @@ import { describe, expect, it } from 'vitest';
 import { validateIdentityAlias } from '../src/config/schema.js';
 import { resolveTestnetDeploymentPlan } from '../src/deployment/project.js';
 import { ValidationCliError } from '../src/errors/index.js';
-import { withTempDirectory } from './helpers/index.js';
+import {
+  withTempDirectory,
+  writeGeneratedWasmArtifact,
+} from './helpers/index.js';
 
 const IDENTITY_REJECTION =
   'Stellar identity must be a named Stellar CLI identity alias.';
@@ -216,6 +219,7 @@ describe('deploy refuses a raw StrKey before spawning (#186)', () => {
           '[workspace]\nmembers = []\n',
           'utf8',
         );
+        writeGeneratedWasmArtifact(root);
 
         expect(() =>
           resolveTestnetDeploymentPlan({
@@ -236,6 +240,7 @@ describe('deploy refuses a raw StrKey before spawning (#186)', () => {
           '[workspace]\nmembers = []\n',
           'utf8',
         );
+        writeGeneratedWasmArtifact(root);
 
         expect(() =>
           resolveTestnetDeploymentPlan({
@@ -254,6 +259,7 @@ describe('deploy refuses a raw StrKey before spawning (#186)', () => {
         '[workspace]\nmembers = []\n',
         'utf8',
       );
+      writeGeneratedWasmArtifact(root);
 
       const plan = resolveTestnetDeploymentPlan({
         cwd: root,

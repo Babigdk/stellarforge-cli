@@ -1,8 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import type { DevProcessSpec } from '../dev/project.js';
+import {
+  resolveProjectPath,
+  resolveProjectRoot,
+  type DevProcessSpec,
+} from '../dev/project.js';
 import { ValidationCliError } from '../errors/errors.js';
 import { createNpmInvocation } from '../process/npm.js';
+
+export { DETERMINISTIC_LOCALE_ENVIRONMENT } from '../dev/environment.js';
 
 interface ProjectPackage {
   readonly name?: unknown;
@@ -10,7 +15,7 @@ interface ProjectPackage {
 }
 
 function resolveNodeTestPlan(projectRoot: string): DevProcessSpec | undefined {
-  const packagePath = resolve(projectRoot, 'package.json');
+  const packagePath = resolveProjectPath(projectRoot, 'package.json');
 
   if (!existsSync(packagePath)) {
     return undefined;
@@ -66,7 +71,7 @@ function resolveNodeTestPlan(projectRoot: string): DevProcessSpec | undefined {
 }
 
 function resolveCargoTestPlan(projectRoot: string): DevProcessSpec | undefined {
-  if (!existsSync(resolve(projectRoot, 'Cargo.toml'))) {
+  if (!existsSync(resolveProjectPath(projectRoot, 'Cargo.toml'))) {
     return undefined;
   }
 
@@ -79,7 +84,7 @@ function resolveCargoTestPlan(projectRoot: string): DevProcessSpec | undefined {
 }
 
 export function resolveTestProcessPlan(cwd: string): readonly DevProcessSpec[] {
-  const projectRoot = resolve(cwd);
+  const projectRoot = selectProjectRoot(cwd, 'test');
   const nodePlan = resolveNodeTestPlan(projectRoot);
 
   if (nodePlan !== undefined) {
@@ -92,6 +97,31 @@ export function resolveTestProcessPlan(cwd: string): readonly DevProcessSpec[] {
   }
 
   throw new ValidationCliError(
-    'No supported StellarForge test workflow was found. Expected a package.json test script or a Cargo.toml workspace.',
+    'No supported StellarForge test workflow was found. Run `stellarforge test` from the generated project root or a nested directory inside it. Expected a package.json test script or a Cargo.toml workspace.',
   );
+}
+
+export async function superviseTestProcesses(
+  specs: readonly DevProcessSpec[],
+  options: DevOrchestratorOptions = {},
+): Promise<void> {
+  const usesNpm = specs.some(isNpmInvocation);
+
+  try {
+    await superviseDevProcesses(specs, options);
+  } catch (error) {
+    if (!usesNpm || !(error instanceof SubprocessCliError)) {
+      throw error;
+    }
+
+    const failure = classifyNpmInvocationError(error.cause);
+
+    if (failure === undefined) {
+      throw error;
+    }
+
+    throw new SubprocessCliError(npmInvocationRemediation(failure), {
+      cause: error,
+    });
+  }
 }

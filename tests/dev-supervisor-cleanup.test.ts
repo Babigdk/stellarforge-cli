@@ -20,16 +20,24 @@
  * file stays focused on failure paths.
  */
 
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
+import { setTimeout as delay } from 'node:timers/promises';
 import { describe, expect, it } from 'vitest';
 import {
+  defaultSpawnProcess,
   superviseDevProcesses,
   type DevSignalSource,
   type ManagedChildProcess,
 } from '../src/dev/orchestrator.js';
 import type { DevProcessSpec } from '../src/dev/project.js';
 import { SubprocessCliError } from '../src/errors/errors.js';
-import { createCapturedTerminalOutput } from './helpers/index.js';
+import {
+  createCapturedTerminalOutput,
+  withTempDirectory,
+} from './helpers/index.js';
 
 class FakeChild implements ManagedChildProcess {
   readonly stdout = new PassThrough();
@@ -76,6 +84,13 @@ class FakeChild implements ManagedChildProcess {
     this.stdout.end();
     this.stderr.end();
     this.#exitListener?.(code, signal);
+  }
+}
+
+class StubbornChild extends FakeChild {
+  override kill(signal: NodeJS.Signals = 'SIGTERM'): boolean {
+    this.killedSignals.push(signal);
+    return true;
   }
 }
 
@@ -353,5 +368,268 @@ describe('supervisor stream error handling (#389)', () => {
 
     await expect(running).rejects.toThrow('stderr stream failed');
     expect(captured.stdoutText()).not.toContain('sk_li');
+  });
+});
+
+describe('child environment isolation (#335)', () => {
+  it('copies only allowlisted values and leaves the parent environment unchanged', async () => {
+    const child = new FakeChild();
+    const source: NodeJS.ProcessEnv = {
+      PATH: '/usr/bin',
+      Path: '/usr/local/bin',
+      STELLAR_NETWORK: 'TESTNET',
+      SECRET_TOKEN: 'must-not-propagate',
+      aws_secret_access_key: 'aws-must-not-propagate',
+      API_TOKEN: 'api-must-not-propagate',
+      api_token: 'variant-must-not-propagate',
+      NPM_TOKEN: 'npm-must-not-propagate',
+      npm_token: 'npm-variant-must-not-propagate',
+      GITHUB_TOKEN: 'github-must-not-propagate',
+    };
+    const snapshot = { ...source };
+    let childEnvironment: NodeJS.ProcessEnv | undefined;
+
+    const running = superviseDevProcesses(specs('api'), {
+      environment: source,
+      spawnProcess(_spec, environment) {
+        childEnvironment = environment;
+        return child;
+      },
+      signalSource: new FakeSignalSource(),
+    });
+
+    child.emitExit(0, null);
+    await running;
+
+    expect(childEnvironment?.PATH).toBe('/usr/bin');
+    expect(childEnvironment?.Path).toBeUndefined();
+    expect(childEnvironment?.STELLAR_NETWORK).toBe('TESTNET');
+    expect(childEnvironment?.SECRET_TOKEN).toBeUndefined();
+    expect(childEnvironment?.aws_secret_access_key).toBeUndefined();
+    expect(childEnvironment?.API_TOKEN).toBeUndefined();
+    expect(childEnvironment?.api_token).toBeUndefined();
+    expect(childEnvironment?.NPM_TOKEN).toBeUndefined();
+    expect(childEnvironment?.npm_token).toBeUndefined();
+    expect(childEnvironment?.GITHUB_TOKEN).toBeUndefined();
+    expect(source).toEqual(snapshot);
+  });
+
+  it('never prints excluded environment values in child diagnostics', async () => {
+    const child = new FakeChild();
+    const captured = createCapturedTerminalOutput();
+    const source: NodeJS.ProcessEnv = {
+      PATH: '/usr/bin',
+      SECRET_TOKEN: 'must-not-print-this-value',
+      AWS_SECRET_ACCESS_KEY: 'aws-credential-value',
+    };
+
+    const running = superviseDevProcesses(specs('api'), {
+      output: captured.output,
+      environment: source,
+      spawnProcess: () => child,
+      signalSource: new FakeSignalSource(),
+    });
+
+    child.stdout.write('config: must-not-print-this-value\n');
+    child.stderr.write('key: aws-credential-value\n');
+    child.emitExit(0, null);
+    await running;
+
+    const output = captured.stdoutText() + captured.stderrText();
+    expect(output).not.toContain('must-not-print-this-value');
+    expect(output).not.toContain('aws-credential-value');
+    expect(output).toContain('[REDACTED]');
+  });
+
+  it('normalizes case-insensitive allowlisted keys', async () => {
+    const child = new FakeChild();
+    let childEnvironment: NodeJS.ProcessEnv | undefined;
+
+    const running = superviseDevProcesses(specs('api'), {
+      environment: { path: 'C:\\Tools', SystemRoot: 'C:\\Windows' },
+      spawnProcess(_spec, environment) {
+        childEnvironment = environment;
+        return child;
+      },
+      signalSource: new FakeSignalSource(),
+    });
+
+    child.emitExit(0, null);
+    await running;
+
+    expect(childEnvironment?.PATH).toBe('C:\\Tools');
+    expect(childEnvironment?.SystemRoot).toBe('C:\\Windows');
+    expect(childEnvironment?.path).toBeUndefined();
+  });
+});
+
+describe('bounded process-tree cleanup (#336)', () => {
+  it('escalates from graceful to forced termination when a child ignores shutdown', async () => {
+    const child = new StubbornChild();
+
+    const running = superviseDevProcesses(specs('api'), {
+      spawnProcess: () => child,
+      signalSource: new FakeSignalSource(),
+      timeoutMs: 10,
+      terminationGraceMs: 10,
+    });
+
+    await expect(running).rejects.toThrow('timed out');
+    expect(child.killedSignals).toEqual(['SIGTERM', 'SIGKILL']);
+  });
+
+  it('settles a repeated user shutdown once the forced termination grace expires', async () => {
+    const child = new StubbornChild();
+    const signals = new FakeSignalSource();
+
+    const running = superviseDevProcesses(specs('api'), {
+      spawnProcess: () => child,
+      signalSource: signals,
+      terminationGraceMs: 10,
+    });
+
+    signals.emit('SIGTERM');
+    signals.emit('SIGTERM');
+    signals.emit('SIGINT');
+
+    await expect(running).resolves.toBeUndefined();
+    expect(child.killedSignals).toEqual(['SIGTERM', 'SIGKILL']);
+    expect(signals.has('SIGINT')).toBe(false);
+    expect(signals.has('SIGTERM')).toBe(false);
+  });
+
+  it('does not re-signal a child that exited before forced termination', async () => {
+    const child = new FakeChild();
+    const signals = new FakeSignalSource();
+
+    const running = superviseDevProcesses(specs('api'), {
+      spawnProcess: () => child,
+      signalSource: signals,
+      terminationGraceMs: 10,
+    });
+
+    signals.emit('SIGTERM');
+    await running;
+
+    await delay(30);
+    expect(child.killedSignals).toEqual(['SIGTERM']);
+  });
+});
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+async function waitForMarker(markerPath: string): Promise<number> {
+  const deadline = Date.now() + 5_000;
+
+  while (Date.now() < deadline) {
+    if (existsSync(markerPath)) {
+      const pid = Number(readFileSync(markerPath, 'utf8').trim());
+      if (Number.isSafeInteger(pid) && pid > 0) {
+        return pid;
+      }
+    }
+
+    await delay(25);
+  }
+
+  throw new Error('grandchild fixture did not publish its PID');
+}
+
+async function waitForExit(pid: number): Promise<void> {
+  const deadline = Date.now() + 5_000;
+
+  while (Date.now() < deadline) {
+    if (!isProcessAlive(pid)) {
+      return;
+    }
+
+    await delay(25);
+  }
+
+  throw new Error(`grandchild process ${pid} is still alive`);
+}
+
+const itWindows = process.platform === 'win32' ? it : it.skip;
+
+describe('Windows descendant cleanup fixture (#336)', () => {
+  itWindows('terminates a spawned grandchild process tree', async () => {
+    await withTempDirectory(async (root: string) => {
+      const runnerPath = join(root, 'runner.mjs');
+      const grandchildPath = join(root, 'grandchild.mjs');
+      const markerPath = join(root, 'grandchild.pid');
+      let rootPid: number | undefined;
+      let grandchildPid: number | undefined;
+
+      writeFileSync(
+        runnerPath,
+        [
+          "import { spawn } from 'node:child_process';",
+          'const [grandchild, marker] = process.argv.slice(2);',
+          "spawn(process.execPath, [grandchild, marker], { stdio: 'ignore', windowsHide: true });",
+          'setInterval(() => {}, 1000);',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      writeFileSync(
+        grandchildPath,
+        [
+          "import { writeFileSync } from 'node:fs';",
+          'writeFileSync(process.argv[2], String(process.pid));',
+          'setInterval(() => {}, 1000);',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      try {
+        const signals = new FakeSignalSource();
+        const running = superviseDevProcesses(
+          [
+            {
+              label: 'fixture',
+              command: process.execPath,
+              args: [runnerPath, grandchildPath, markerPath],
+              cwd: root,
+            },
+          ],
+          {
+            signalSource: signals,
+            terminationGraceMs: 100,
+            spawnProcess(spec, environment) {
+              const spawned = defaultSpawnProcess(spec, environment);
+              rootPid = spawned.pid;
+              return spawned;
+            },
+          },
+        );
+
+        grandchildPid = await waitForMarker(markerPath);
+        signals.emit('SIGTERM');
+        await running;
+        await waitForExit(grandchildPid);
+      } finally {
+        if (rootPid !== undefined && isProcessAlive(rootPid)) {
+          spawnSync('taskkill.exe', ['/PID', String(rootPid), '/T', '/F'], {
+            stdio: 'ignore',
+            windowsHide: true,
+          });
+        }
+
+        if (grandchildPid !== undefined && isProcessAlive(grandchildPid)) {
+          spawnSync('taskkill.exe', ['/PID', String(grandchildPid), '/F'], {
+            stdio: 'ignore',
+            windowsHide: true,
+          });
+        }
+      }
+    });
   });
 });

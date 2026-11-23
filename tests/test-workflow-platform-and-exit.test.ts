@@ -21,7 +21,10 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolveTestProcessPlan } from '../src/testing/project.js';
+import {
+  DETERMINISTIC_LOCALE_ENVIRONMENT,
+  resolveTestProcessPlan,
+} from '../src/testing/project.js';
 import { superviseDevProcesses } from '../src/dev/orchestrator.js';
 import type {
   DevSignalSource,
@@ -259,5 +262,92 @@ describe('resolved plan matches the platform (#170)', () => {
 
       expect(() => resolveTestProcessPlan(root)).toThrow(/No supported/);
     });
+  });
+});
+
+describe('deterministic test child environment (#337)', () => {
+  async function captureTestEnvironment(
+    source: NodeJS.ProcessEnv,
+  ): Promise<NodeJS.ProcessEnv | undefined> {
+    const child = new FakeChild();
+    let captured: NodeJS.ProcessEnv | undefined;
+
+    await withTempDirectory(async (root: string) => {
+      writeFileSync(
+        resolve(root, 'package.json'),
+        JSON.stringify({ name: 'demo', scripts: { test: 'vitest run' } }),
+        'utf8',
+      );
+      const [plan] = resolveTestProcessPlan(root);
+      if (plan === undefined) {
+        throw new Error('expected a resolved test plan');
+      }
+
+      const running = superviseDevProcesses([plan], {
+        environment: source,
+        spawnProcess(_spec, environment) {
+          captured = environment;
+          return child;
+        },
+        signalSource: new FakeSignalSource(),
+      });
+
+      child.emitExit(0, null);
+      await running;
+    });
+
+    return captured;
+  }
+
+  it('supplies deterministic locale values when the parent defines none', async () => {
+    const source: NodeJS.ProcessEnv = {
+      PATH: '/usr/bin',
+      SystemRoot: 'C:\\Windows',
+      STELLAR_NETWORK: 'TESTNET',
+      SECRET_TOKEN: 'must-not-propagate',
+    };
+    const snapshot = { ...source };
+
+    const environment = await captureTestEnvironment(source);
+
+    expect(environment).toMatchObject(DETERMINISTIC_LOCALE_ENVIRONMENT);
+    expect(environment?.PATH).toBe('/usr/bin');
+    expect(environment?.SystemRoot).toBe('C:\\Windows');
+    expect(environment?.STELLAR_NETWORK).toBe('TESTNET');
+    expect(environment?.SECRET_TOKEN).toBeUndefined();
+    expect(source).toEqual(snapshot);
+  });
+
+  it('overrides conflicting locale variables without changing the parent', async () => {
+    const source: NodeJS.ProcessEnv = {
+      PATH: '/usr/bin',
+      LANG: 'fr_FR.UTF-8',
+      LC_ALL: 'de_DE.UTF-8',
+      LANGUAGE: 'es:fr',
+      API_TOKEN: 'must-not-propagate',
+    };
+    const snapshot = { ...source };
+
+    const environment = await captureTestEnvironment(source);
+
+    expect(environment).toMatchObject(DETERMINISTIC_LOCALE_ENVIRONMENT);
+    expect(environment?.LANG).not.toBe(source.LANG);
+    expect(environment?.LC_ALL).not.toBe(source.LC_ALL);
+    expect(environment?.LANGUAGE).not.toBe(source.LANGUAGE);
+    expect(environment?.API_TOKEN).toBeUndefined();
+    expect(source).toEqual(snapshot);
+  });
+
+  it('does not derive behavior from a CI marker', async () => {
+    const withoutCi = await captureTestEnvironment({ PATH: '/usr/bin' });
+    const withCi = await captureTestEnvironment({
+      PATH: '/usr/bin',
+      CI: 'true',
+    });
+
+    expect(withCi).toMatchObject(DETERMINISTIC_LOCALE_ENVIRONMENT);
+    expect(withoutCi).toMatchObject(DETERMINISTIC_LOCALE_ENVIRONMENT);
+    expect(withCi?.CI).toBe('true');
+    expect(withoutCi?.CI).toBeUndefined();
   });
 });

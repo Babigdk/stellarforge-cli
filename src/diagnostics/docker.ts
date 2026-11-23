@@ -9,6 +9,7 @@ import type {
   DiagnosticResult,
   DiagnosticStatus,
 } from './types.js';
+import { parseNumericVersion } from './version.js';
 
 export interface DockerDiagnosticOptions {
   readonly execute?: RunCommand;
@@ -21,7 +22,13 @@ function unavailableStatus(required: boolean): DiagnosticStatus {
 
 function parseDockerVersion(output: string): string | null {
   const match = /^Docker version (\d+\.\d+\.\d+)/i.exec(output.trim());
-  return match?.[1] ?? null;
+  const version = match?.[1] ?? null;
+
+  if (!version || !parseNumericVersion(version)) {
+    return null;
+  }
+
+  return version;
 }
 
 function timeoutMessage(required: boolean): string {

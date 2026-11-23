@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -12,7 +13,10 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { ValidationCliError } from '../errors/errors.js';
+import {
+  ScaffoldingCancelledCliError,
+  ValidationCliError,
+} from '../errors/errors.js';
 import { resolveCliVersion } from '../version.js';
 import type {
   GenerationContext,
@@ -23,12 +27,24 @@ import type {
 
 const SUBSTITUTION_TOKEN = /\{\{([A-Za-z][A-Za-z0-9]*)\}\}/g;
 
+
+// npm-packlist always excludes .gitignore files from published packages,
+// regardless of the package.json files field. Template gitignore files are
+// therefore stored without the leading dot so they survive npm pack. This
+// map restores the intended filename when the file is written to the
+// generated project.
+const DOTFILE_REMAP: Readonly<Record<string, string>> = {
+  gitignore: '.gitignore',
+};
+
+
 /** Maximum number of files a template may contain (25× the largest bundled template). */
 export const MAX_TEMPLATE_FILE_COUNT = 256;
 /** Maximum aggregate bytes of regular files (~55× the largest bundled template). */
 export const MAX_TEMPLATE_TOTAL_BYTES = 1024 * 1024;
 /** Maximum bytes of a single template file (~46× the largest bundled template file). */
 export const MAX_TEMPLATE_FILE_BYTES = 256 * 1024;
+
 
 export interface TemplateGenerationOptions {
   readonly templateRoot: string;
@@ -38,6 +54,7 @@ export interface TemplateGenerationOptions {
    */
   readonly generatorVersion?: string | undefined;
   readonly dryRun?: boolean;
+  readonly isCancelled?: () => boolean;
 }
 
 interface TemplateBudget {
@@ -51,6 +68,13 @@ export const GENERATED_MARKER_FILENAME = '.stellarforge.json';
 /** Package identifier recorded in the generated provenance marker. */
 export const GENERATOR_PACKAGE_NAME = '@diginodes/stellarforge-cli';
 
+interface RenderedTemplateFile {
+  readonly relativePath: string;
+  readonly content: Buffer | string;
+  readonly substitutions: readonly string[];
+  readonly mode: number;
+}
+
 function isWithin(root: string, candidate: string): boolean {
   const pathFromRoot = relative(root, candidate);
 
@@ -60,18 +84,6 @@ function isWithin(root: string, candidate: string): boolean {
     !pathFromRoot.startsWith(`..${sep}`) &&
     !isAbsolute(pathFromRoot)
   );
-}
-
-function assertSafeEntryName(name: string): void {
-  if (
-    name.length === 0 ||
-    name === '.' ||
-    name === '..' ||
-    name.includes('/') ||
-    name.includes('\\')
-  ) {
-    throw new ValidationCliError('Template contains an unsafe file path.');
-  }
 }
 
 function renderText(
@@ -97,6 +109,12 @@ function renderText(
 
 function isBinary(content: Buffer): boolean {
   return content.includes(0);
+}
+
+function assertNotCancelled(isCancelled?: () => boolean): void {
+  if (isCancelled?.()) {
+    throw new ScaffoldingCancelledCliError();
+  }
 }
 
 /**
@@ -199,7 +217,9 @@ function visitTemplateTree(
     substitutions: readonly string[],
   ) => void,
   visitDirectory: (relativePath: string) => void,
+  isCancelled?: () => boolean,
 ): void {
+  assertNotCancelled(isCancelled);
   const sourceDirectory = resolve(templateRoot, relativeDirectory);
   const entries = readdirSync(sourceDirectory, { withFileTypes: true }).sort(
     (a, b) => {
@@ -210,10 +230,14 @@ function visitTemplateTree(
   );
 
   for (const entry of entries) {
+    assertNotCancelled(isCancelled);
     assertSafeEntryName(entry.name);
 
+    const destinationName = DOTFILE_REMAP[entry.name] ?? entry.name;
     const relativePath = join(relativeDirectory, entry.name);
+    const destinationRelativePath = join(relativeDirectory, destinationName);
     const sourcePath = resolve(templateRoot, relativePath);
+
 
     if (!isWithin(templateRoot, sourcePath)) {
       throw new ValidationCliError(
@@ -223,11 +247,15 @@ function visitTemplateTree(
 
     const sourceStat = lstatSync(sourcePath);
 
-    if (sourceStat.isSymbolicLink()) {
-      throw new ValidationCliError(
-        'Template symbolic links are not supported.',
-      );
-    }
+      const rendered = renderText(content.toString('utf8'), variables);
+      return {
+        relativePath: entry.relativePath,
+        content: rendered.content,
+        substitutions: rendered.substitutions,
+        mode: entry.mode,
+      };
+    });
+}
 
     if (sourceStat.isDirectory()) {
       visitDirectory(relativePath);
@@ -237,26 +265,29 @@ function visitTemplateTree(
         variables,
         visitFile,
         visitDirectory,
+        isCancelled,
       );
       continue;
     }
 
-    if (!sourceStat.isFile()) {
-      throw new ValidationCliError(
-        'Template contains an unsupported filesystem entry.',
-      );
-    }
-
-    const content = readFileSync(sourcePath);
+  if (!isWithin(stagingRoot, destinationPath)) {
+    throw new ValidationCliError(
+      'Template file path escapes the trusted project root.',
+    );
+  }
 
     if (isBinary(content)) {
-      visitFile(relativePath, content, []);
+      visitFile(destinationRelativePath, content, []);
       continue;
     }
 
     const rendered = renderText(content.toString('utf8'), variables);
-    visitFile(relativePath, rendered.content, rendered.substitutions);
+    visitFile(destinationRelativePath, rendered.content, rendered.substitutions);
   }
+
+  const mode = resolveGeneratedFileMode(file.mode);
+  writeFileSync(destinationPath, file.content, { mode });
+  chmodSync(destinationPath, mode);
 }
 
 function assertDestinationContainment(root: string, destination: string): void {
@@ -362,6 +393,7 @@ export function generateProjectFromTemplate(
     projectName: context.input.projectName,
     templateId: context.template.templateId,
   };
+  const renderedFiles = renderTemplateFiles(tree, variables);
 
   if (options.dryRun) {
     const files: ProjectGenerationPreviewFile[] = [];
@@ -376,6 +408,7 @@ export function generateProjectFromTemplate(
         });
       },
       () => undefined,
+      options.isCancelled,
     );
 
     return {
@@ -393,6 +426,7 @@ export function generateProjectFromTemplate(
   let removedExistingDestination = false;
 
   try {
+    assertNotCancelled(options.isCancelled);
     visitTemplateTree(
       templateRoot,
       '.',
@@ -405,24 +439,26 @@ export function generateProjectFromTemplate(
           );
         }
 
-        mkdirSync(dirname(destinationPath), { recursive: true });
-        writeFileSync(destinationPath, content);
-      },
-      (relativePath) => {
-        const destinationPath = resolve(stagingRoot, relativePath);
-        if (!isWithin(stagingRoot, destinationPath)) {
-          throw new ValidationCliError(
-            'Template file path escapes the trusted project root.',
-          );
-        }
+      const destinationPath = resolveStagingPath(
+        stagingRoot,
+        entry.relativePath,
+      );
+      mkdirSync(destinationPath, {
+        recursive: true,
+        mode: GENERATED_DIRECTORY_MODE,
+      });
+    }
 
         mkdirSync(destinationPath, { recursive: false });
       },
+      options.isCancelled,
     );
+
+    assertNotCancelled(options.isCancelled);
 
     // Re-validate immediately before the mutating write phase. The checks
     // above can be invalidated by a concurrent destination replacement while
-    // copyTemplateTree was still running (it only writes into the unrelated
+    // staging was still running (it only writes into the unrelated
     // staging directory, never into `destination`), so this closes the
     // time-of-check/time-of-use gap rather than relying on the earlier check.
     assertDestinationContainment(root, destination);
@@ -452,10 +488,12 @@ export function generateProjectFromTemplate(
         );
       }
 
+      assertNotCancelled(options.isCancelled);
       rmdirSync(destination);
       removedExistingDestination = true;
     }
 
+    assertNotCancelled(options.isCancelled);
     // Provenance marker: record only the template identifier and generator
     // version — never user, host, path, or environment information. Kept
     // byte-stable across runs except for the version value itself. Written
@@ -472,6 +510,7 @@ export function generateProjectFromTemplate(
       'utf8',
     );
 
+    assertNotCancelled(options.isCancelled);
     renameSync(stagingRoot, destination);
   } catch (error) {
     rmSync(stagingRoot, { recursive: true, force: true });

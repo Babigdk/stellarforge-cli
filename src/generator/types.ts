@@ -37,6 +37,11 @@ export interface ProjectGenerationPreviewFile {
   readonly substitutions: readonly string[];
 }
 
+export interface ProjectGenerationOptions {
+  readonly dryRun?: boolean;
+  readonly isCancelled?: () => boolean;
+}
+
 export interface ProjectGeneratorServices {
   validate(input: ProjectGeneratorInput): ValidatedProjectInput;
   planDestination(input: ValidatedProjectInput): DestinationPlan;
@@ -46,7 +51,7 @@ export interface ProjectGeneratorServices {
   ): TemplateSelection;
   generate(
     context: GenerationContext,
-    options?: { readonly dryRun?: boolean },
+    options?: ProjectGenerationOptions,
   ): ProjectGenerationResult | ProjectGenerationPreview;
   install?(result: ProjectGenerationResult): void;
   initializeGit?(result: ProjectGenerationResult): void;

@@ -46,22 +46,21 @@ function summarize(
   };
 
   for (const result of results) {
-    switch (result.status) {
-      case 'pass':
-        summary.pass += 1;
-        break;
-
-      case 'warn':
-        summary.warn += 1;
-        break;
-
-      case 'fail':
-        summary.fail += 1;
-        break;
+    if (result.status === 'pass') {
+      pass += 1;
+    } else if (result.status === 'warn') {
+      warn += 1;
+    } else {
+      fail += 1;
     }
   }
 
-  return summary;
+  return {
+    pass,
+    warn,
+    fail,
+    total: pass + warn + fail,
+  };
 }
 
 /**

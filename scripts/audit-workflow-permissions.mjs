@@ -13,14 +13,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-/** Explicit per-job exceptions for workflows that must write. */
-const ARTIFACT_RETENTION_DAYS = {
-  test: 7,
-  coverage: 7,
-  security: 30,
-  release: 90,
-};
-
 /** Artifact path patterns that must never be uploaded. */
 const FORBIDDEN_ARTIFACT_PATTERNS = [
   /\.env(\b|$)/i,

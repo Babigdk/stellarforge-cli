@@ -178,6 +178,34 @@ describe('template generation', () => {
       ).toThrow('symbolic links are not supported');
       expect(existsSync(join(root, 'demo-app'))).toBe(false);
     }));
+
+  it('remaps gitignore to .gitignore in the generated project', () =>
+    // Verifies the DOTFILE_REMAP convention introduced in SW-145.
+    // Template files named `gitignore` (without leading dot) are written as
+    // `.gitignore` so they survive npm-packlist's always-exclude rule for
+    // dotfiles while still producing a correct .gitignore in generated projects.
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+      writeFileSync(join(templateRoot, 'gitignore'), 'target/\n.env\n');
+      writeFileSync(join(templateRoot, 'README.md'), '# demo\n');
+
+      generateProjectFromTemplate(context(root), { templateRoot });
+
+      // The remapped file must exist as .gitignore, not as gitignore.
+      expect(
+        existsSync(join(root, 'demo-app', '.gitignore')),
+        'generated project must contain .gitignore remapped from template gitignore',
+      ).toBe(true);
+      expect(
+        existsSync(join(root, 'demo-app', 'gitignore')),
+        'generated project must not contain a bare gitignore file',
+      ).toBe(false);
+      expect(
+        readFileSync(join(root, 'demo-app', '.gitignore'), 'utf8'),
+        '.gitignore content must match the template gitignore content',
+      ).toBe('target/\n.env\n');
+    }));
 });
 
 describe('template generation budget limits (SW-199)', () => {

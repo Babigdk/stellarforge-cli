@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { redactSecretLikeText } from '../output/redaction.js';
 
 export const DIAGNOSTIC_COMMAND_TIMEOUT_MS = 5_000;
 export const DIAGNOSTIC_KILL_SIGNAL_GRACE_MS = 1_000;
@@ -187,6 +188,21 @@ export const runCommand: RunCommand = (executable, args) => {
 
 export type CommandOutcome =
   'ok' | 'missing-executable' | 'timed-out' | 'failed';
+
+export function redactDiagnosticCommandArgs(
+  args: readonly string[],
+): readonly string[] {
+  return args.map((arg) => redactSecretLikeText(arg));
+}
+
+export function formatDiagnosticCommand(
+  executable: string,
+  args: readonly string[],
+): string {
+  return [redactSecretLikeText(executable), ...redactDiagnosticCommandArgs(args)].join(
+    ' ',
+  );
+}
 
 /**
  * Recognizes the platform-specific ways Node reports that an executable could

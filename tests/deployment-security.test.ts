@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDeployCommand } from '../src/commands/deploy.js';
+import { GENERATED_WASM_ARTIFACT_PATH } from '../src/deployment/project.js';
 import { EXIT_CODES, runWithCliErrorBoundary } from '../src/errors/index.js';
 import {
   createCapturedTerminalOutput,
@@ -11,6 +12,7 @@ import {
   SECRET_FIXTURE_VALUES,
   SECRET_STRKEY_FIXTURE,
   withTempDirectory,
+  writeGeneratedWasmArtifact,
 } from './helpers/index.js';
 
 // Umbrella regression suite for the deployment security boundaries:
@@ -77,6 +79,7 @@ async function runDeployScenario(
 ): Promise<DeployRun> {
   if (scenario.cargo ?? true) {
     writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+    writeGeneratedWasmArtifact(root);
   }
   if (scenario.config !== undefined) {
     writeFileSync(
@@ -208,6 +211,8 @@ describe('deployment security regression suite', () => {
       expect(spawnedArgs()).toEqual([
         'contract',
         'deploy',
+        '--wasm',
+        GENERATED_WASM_ARTIFACT_PATH,
         '--source-account',
         'deployer',
         '--network',
@@ -299,6 +304,8 @@ describe('deployment security regression suite', () => {
         expect(args).toEqual([
           'contract',
           'deploy',
+          '--wasm',
+          GENERATED_WASM_ARTIFACT_PATH,
           '--source-account',
           'deployer',
           '--network',
