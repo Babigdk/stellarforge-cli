@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -67,6 +68,13 @@ export const GENERATED_MARKER_FILENAME = '.stellarforge.json';
 /** Package identifier recorded in the generated provenance marker. */
 export const GENERATOR_PACKAGE_NAME = '@diginodes/stellarforge-cli';
 
+interface RenderedTemplateFile {
+  readonly relativePath: string;
+  readonly content: Buffer | string;
+  readonly substitutions: readonly string[];
+  readonly mode: number;
+}
+
 function isWithin(root: string, candidate: string): boolean {
   const pathFromRoot = relative(root, candidate);
 
@@ -76,18 +84,6 @@ function isWithin(root: string, candidate: string): boolean {
     !pathFromRoot.startsWith(`..${sep}`) &&
     !isAbsolute(pathFromRoot)
   );
-}
-
-function assertSafeEntryName(name: string): void {
-  if (
-    name.length === 0 ||
-    name === '.' ||
-    name === '..' ||
-    name.includes('/') ||
-    name.includes('\\')
-  ) {
-    throw new ValidationCliError('Template contains an unsafe file path.');
-  }
 }
 
 function renderText(
@@ -251,11 +247,15 @@ function visitTemplateTree(
 
     const sourceStat = lstatSync(sourcePath);
 
-    if (sourceStat.isSymbolicLink()) {
-      throw new ValidationCliError(
-        'Template symbolic links are not supported.',
-      );
-    }
+      const rendered = renderText(content.toString('utf8'), variables);
+      return {
+        relativePath: entry.relativePath,
+        content: rendered.content,
+        substitutions: rendered.substitutions,
+        mode: entry.mode,
+      };
+    });
+}
 
     if (sourceStat.isDirectory()) {
       visitDirectory(relativePath);
@@ -270,13 +270,11 @@ function visitTemplateTree(
       continue;
     }
 
-    if (!sourceStat.isFile()) {
-      throw new ValidationCliError(
-        'Template contains an unsupported filesystem entry.',
-      );
-    }
-
-    const content = readFileSync(sourcePath);
+  if (!isWithin(stagingRoot, destinationPath)) {
+    throw new ValidationCliError(
+      'Template file path escapes the trusted project root.',
+    );
+  }
 
     if (isBinary(content)) {
       visitFile(destinationRelativePath, content, []);
@@ -286,6 +284,10 @@ function visitTemplateTree(
     const rendered = renderText(content.toString('utf8'), variables);
     visitFile(destinationRelativePath, rendered.content, rendered.substitutions);
   }
+
+  const mode = resolveGeneratedFileMode(file.mode);
+  writeFileSync(destinationPath, file.content, { mode });
+  chmodSync(destinationPath, mode);
 }
 
 function assertDestinationContainment(root: string, destination: string): void {
@@ -391,6 +393,7 @@ export function generateProjectFromTemplate(
     projectName: context.input.projectName,
     templateId: context.template.templateId,
   };
+  const renderedFiles = renderTemplateFiles(tree, variables);
 
   if (options.dryRun) {
     const files: ProjectGenerationPreviewFile[] = [];
@@ -436,16 +439,15 @@ export function generateProjectFromTemplate(
           );
         }
 
-        mkdirSync(dirname(destinationPath), { recursive: true });
-        writeFileSync(destinationPath, content);
-      },
-      (relativePath) => {
-        const destinationPath = resolve(stagingRoot, relativePath);
-        if (!isWithin(stagingRoot, destinationPath)) {
-          throw new ValidationCliError(
-            'Template file path escapes the trusted project root.',
-          );
-        }
+      const destinationPath = resolveStagingPath(
+        stagingRoot,
+        entry.relativePath,
+      );
+      mkdirSync(destinationPath, {
+        recursive: true,
+        mode: GENERATED_DIRECTORY_MODE,
+      });
+    }
 
         mkdirSync(destinationPath, { recursive: false });
       },
@@ -456,7 +458,7 @@ export function generateProjectFromTemplate(
 
     // Re-validate immediately before the mutating write phase. The checks
     // above can be invalidated by a concurrent destination replacement while
-    // copyTemplateTree was still running (it only writes into the unrelated
+    // staging was still running (it only writes into the unrelated
     // staging directory, never into `destination`), so this closes the
     // time-of-check/time-of-use gap rather than relying on the earlier check.
     assertDestinationContainment(root, destination);

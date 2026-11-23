@@ -41,6 +41,23 @@ function canCreateSymlinks(): boolean {
 
 const symlinksSupported = canCreateSymlinks();
 
+function canCreateFileSymlinks(): boolean {
+  const fixture = createTempDirectoryFixture();
+  try {
+    symlinkSync(
+      join(fixture.path, 'probe-target'),
+      join(fixture.path, 'probe-link'),
+    );
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
+const fileSymlinksSupported = canCreateFileSymlinks();
+
 function createMinimalTemplate(root: string): string {
   const templateRoot = join(root, 'template');
   mkdirSync(join(templateRoot, 'src'), { recursive: true });
@@ -320,4 +337,81 @@ describe('generator symlink-ancestor containment (SW-032)', () => {
         }
       }),
   );
+});
+
+describe('bundled template source symlink policy (SW-131)', () => {
+  it.skipIf(!symlinksSupported && !fileSymlinksSupported)(
+    'rejects a dangling symlink entry before writing the generated project',
+    () =>
+      withTempDirectory((root) => {
+        const templateRoot = createMinimalTemplate(root);
+
+        if (fileSymlinksSupported) {
+          symlinkSync(
+            join(templateRoot, 'missing-target.txt'),
+            join(templateRoot, 'dangling.txt'),
+          );
+        } else {
+          symlinkSync(
+            join(root, 'missing-target-dir'),
+            join(templateRoot, 'dangling-dir'),
+            'junction',
+          );
+        }
+
+        expect(() =>
+          generateProjectFromTemplate(
+            createContext(root, join(root, 'demo-app')),
+            { templateRoot },
+          ),
+        ).toThrow('Template symbolic links are not supported.');
+        expect(existsSync(join(root, 'demo-app'))).toBe(false);
+        expect(stagingLeftovers(root)).toEqual([]);
+      }),
+  );
+
+  it.skipIf(!symlinksSupported)(
+    'rejects a symlink whose resolved target escapes the template root',
+    () =>
+      withTempDirectory((root) => {
+        const templateRoot = createMinimalTemplate(root);
+        const outside = createTempDirectoryFixture();
+        try {
+          const outsideFile = join(outside.path, 'secret.txt');
+          writeFileSync(outsideFile, 'outside-template-content');
+          symlinkSync(outsideFile, join(templateRoot, 'escape.txt'));
+
+          expect(() =>
+            generateProjectFromTemplate(
+              createContext(root, join(root, 'demo-app')),
+              { templateRoot },
+            ),
+          ).toThrow(ValidationCliError);
+          expect(existsSync(join(root, 'demo-app'))).toBe(false);
+          expect(stagingLeftovers(root)).toEqual([]);
+          expect(stagingLeftovers(outside.path)).toEqual([]);
+        } finally {
+          outside.cleanup();
+        }
+      }),
+  );
+
+  it('continues to generate regular files and directories', () =>
+    withTempDirectory((root) => {
+      const templateRoot = createMinimalTemplate(root);
+      const destination = join(root, 'demo-app');
+
+      const result = generateProjectFromTemplate(
+        createContext(root, destination),
+        { templateRoot },
+      );
+
+      expect(result.destination).toBe(destination);
+      expect(readFileSync(join(destination, 'package.json'), 'utf8')).toContain(
+        '"name":"demo-app"',
+      );
+      expect(
+        readFileSync(join(destination, 'src', 'index.ts'), 'utf8'),
+      ).toContain('"demo-app"');
+    }));
 });

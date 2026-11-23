@@ -100,3 +100,28 @@ export function resolveTestProcessPlan(cwd: string): readonly DevProcessSpec[] {
     'No supported StellarForge test workflow was found. Run `stellarforge test` from the generated project root or a nested directory inside it. Expected a package.json test script or a Cargo.toml workspace.',
   );
 }
+
+export async function superviseTestProcesses(
+  specs: readonly DevProcessSpec[],
+  options: DevOrchestratorOptions = {},
+): Promise<void> {
+  const usesNpm = specs.some(isNpmInvocation);
+
+  try {
+    await superviseDevProcesses(specs, options);
+  } catch (error) {
+    if (!usesNpm || !(error instanceof SubprocessCliError)) {
+      throw error;
+    }
+
+    const failure = classifyNpmInvocationError(error.cause);
+
+    if (failure === undefined) {
+      throw error;
+    }
+
+    throw new SubprocessCliError(npmInvocationRemediation(failure), {
+      cause: error,
+    });
+  }
+}
