@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, afterEach } from 'vitest';
 import {
   REDACTED_PLACEHOLDER,
   redactSecretLikeText,
@@ -6,6 +6,7 @@ import {
 import {
   sanitizeTerminalText,
   TerminalOutput,
+  shouldUseColor,
   type TextOutputStream,
 } from '../src/output/terminal.js';
 import { TERMINAL_FIXTURES } from './fixtures/terminal-output-fixtures.js';
@@ -166,5 +167,150 @@ describe('sanitizeTerminalText', () => {
     expect(stdout[0]).not.toContain(TOKEN_FIXTURE);
     expect(stdout[0]).not.toContain('\u001b');
     expect(stdout[0]).not.toContain('\r');
+  });
+});
+
+describe('shouldUseColor', () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env.NO_COLOR = originalEnv.NO_COLOR;
+    process.env.FORCE_COLOR = originalEnv.FORCE_COLOR;
+  });
+
+  it('disables color when NO_COLOR is set', () => {
+    const result = shouldUseColor(undefined, { NO_COLOR: '1' });
+    expect(result).toBe(false);
+  });
+
+  it('disables color when NO_COLOR is set to any non-empty value', () => {
+    const result = shouldUseColor(undefined, { NO_COLOR: 'true' });
+    expect(result).toBe(false);
+  });
+
+  it('enables color when NO_COLOR is empty string', () => {
+    const result = shouldUseColor(
+      { write: () => true, isTTY: true },
+      { NO_COLOR: '', FORCE_COLOR: undefined },
+    );
+    expect(result).toBe(true);
+  });
+
+  it('disables color for non-TTY output by default', () => {
+    const result = shouldUseColor(
+      { write: () => true, isTTY: false },
+      { NO_COLOR: undefined, FORCE_COLOR: undefined },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('enables color for TTY output by default', () => {
+    const result = shouldUseColor(
+      { write: () => true, isTTY: true },
+      { NO_COLOR: undefined, FORCE_COLOR: undefined },
+    );
+    expect(result).toBe(true);
+  });
+
+  it('enables color when FORCE_COLOR is set and NO_COLOR is not', () => {
+    const result = shouldUseColor(
+      { write: () => true, isTTY: false },
+      { NO_COLOR: undefined, FORCE_COLOR: '1' },
+    );
+    expect(result).toBe(true);
+  });
+
+  it('disables color when NO_COLOR is set even if FORCE_COLOR is set', () => {
+    const result = shouldUseColor(
+      { write: () => true, isTTY: true },
+      { NO_COLOR: '1', FORCE_COLOR: '1' },
+    );
+    expect(result).toBe(false);
+  });
+
+  it('defaults to false when stream is undefined and no color env vars are set', () => {
+    const result = shouldUseColor(undefined, {
+      NO_COLOR: undefined,
+      FORCE_COLOR: undefined,
+    });
+    expect(result).toBe(false);
+  });
+
+  it('detects TTY from stream isTTY property', () => {
+    const ttyStream: TextOutputStream = { write: () => true, isTTY: true };
+    const result = shouldUseColor(ttyStream, {
+      NO_COLOR: undefined,
+      FORCE_COLOR: undefined,
+    });
+    expect(result).toBe(true);
+  });
+
+  it('respects NO_COLOR over TTY detection', () => {
+    const ttyStream: TextOutputStream = { write: () => true, isTTY: true };
+    const result = shouldUseColor(ttyStream, { NO_COLOR: '1' });
+    expect(result).toBe(false);
+  });
+});
+
+describe('TerminalOutput color selection', () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env.NO_COLOR = originalEnv.NO_COLOR;
+    process.env.FORCE_COLOR = originalEnv.FORCE_COLOR;
+  });
+
+  it('enables color for TTY streams', () => {
+    const output = new TerminalOutput(
+      {
+        stdout: { write: () => true, isTTY: true },
+        stderr: { write: () => true },
+      },
+      {},
+    );
+
+    expect(output.useColor).toBe(true);
+  });
+
+  it('disables color for non-TTY streams', () => {
+    const output = new TerminalOutput(
+      {
+        stdout: { write: () => true, isTTY: false },
+        stderr: { write: () => true },
+      },
+      {},
+    );
+
+    expect(output.useColor).toBe(false);
+  });
+
+  it('allows explicit color override', () => {
+    const output = new TerminalOutput(
+      {
+        stdout: { write: () => true, isTTY: true },
+        stderr: { write: () => true },
+      },
+      { useColor: false },
+    );
+
+    expect(output.useColor).toBe(false);
+  });
+
+  it('status remains understandable without color', () => {
+    const stdout: string[] = [];
+    const output = new TerminalOutput(
+      {
+        stdout: { write: (s) => stdout.push(s) },
+        stderr: { write: () => true },
+      },
+      { useColor: false },
+    );
+
+    output.success('Operation completed');
+    output.info('All systems operational');
+
+    const allOutput = stdout.join('');
+    expect(allOutput).toContain('Operation completed');
+    expect(allOutput).toContain('All systems operational');
   });
 });

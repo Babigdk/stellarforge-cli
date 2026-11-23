@@ -24,6 +24,12 @@ export interface TerminalOutputOptions {
    * the output stream explicitly provides a positive `columns` property.
    */
   readonly columns?: number;
+  /**
+   * Whether to use ANSI color codes in output.
+   * When omitted, determined by: NO_COLOR env var (disables), TTY detection,
+   * and FORCE_COLOR env var (enables only if NO_COLOR is not set).
+   */
+  readonly useColor?: boolean;
 }
 
 export interface WrapOptions {
@@ -44,6 +50,33 @@ const RIGHT_PAREN = 0x29;
 const BEL = 0x07;
 const BACKSLASH = 0x5c;
 const MAX_CONTROL_SEQUENCE_LENGTH = 4096;
+
+/**
+ * Determines whether ANSI color codes should be used in output based on:
+ * - NO_COLOR environment variable (disables colors)
+ * - TTY detection (enables colors if connected to terminal)
+ * - FORCE_COLOR environment variable (enables colors if NO_COLOR not set)
+ *
+ * NO_COLOR takes precedence over TTY and FORCE_COLOR, following the convention.
+ * @see https://no-color.org/
+ */
+export function shouldUseColor(
+  stream?: TextOutputStream,
+  environment: NodeJS.ProcessEnv = process.env,
+): boolean {
+  // NO_COLOR disables colors regardless of other factors
+  if (environment.NO_COLOR !== undefined && environment.NO_COLOR !== '') {
+    return false;
+  }
+
+  // FORCE_COLOR enables colors (unless NO_COLOR is set, which we checked above)
+  if (environment.FORCE_COLOR !== undefined && environment.FORCE_COLOR !== '') {
+    return true;
+  }
+
+  // TTY detection: check if connected to interactive terminal
+  return stream?.isTTY === true;
+}
 
 function isTerminalControlCharacter(code: number): boolean {
   return (
@@ -443,6 +476,7 @@ export function wrapTerminalText(
 export class TerminalOutput {
   readonly #streams: TerminalOutputStreams;
   readonly #columns: number | undefined;
+  readonly #useColor: boolean;
 
   constructor(
     streams: TerminalOutputStreams = {
@@ -453,6 +487,12 @@ export class TerminalOutput {
   ) {
     this.#streams = streams;
     this.#columns = options.columns;
+    this.#useColor =
+      options.useColor ??
+      shouldUseColor(
+        this.#streams.stdout,
+        typeof process !== 'undefined' ? process.env : {},
+      );
   }
 
   // Returns whether the destination stream can accept more data immediately
@@ -473,6 +513,10 @@ export class TerminalOutput {
 
   error(message: string): boolean {
     return this.#write(this.#streams.stderr, message);
+  }
+
+  get useColor(): boolean {
+    return this.#useColor;
   }
 
   onceStdoutDrained(listener: () => void): void {
