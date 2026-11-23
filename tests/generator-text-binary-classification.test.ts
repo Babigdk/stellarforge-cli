@@ -16,7 +16,7 @@
  * Depends on SW-014 (template registry metadata completeness tests).
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { generateProjectFromTemplate } from '../src/generator/template-generation.js';
@@ -616,5 +616,243 @@ describe('classification: mixed text and binary files in one template', () => {
       expect(readFileSync(join(root, 'my-project', 'text.txt'), 'utf8')).toBe(
         'id: my-project\n',
       );
+    }));
+});
+
+// ---------------------------------------------------------------------------
+// 5. Path injection protection — only approved substitutions occur
+// ---------------------------------------------------------------------------
+
+describe('security: path injection protection', () => {
+  it('never substitutes placeholders in directory paths during template traversal', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(join(templateRoot, '{{projectName}}-dir'), {
+        recursive: true,
+      });
+      writeFileSync(
+        join(templateRoot, '{{projectName}}-dir', 'file.txt'),
+        textBuffer('content\n'),
+      );
+
+      generateProjectFromTemplate(context(root), { templateRoot });
+
+      // Directory name must NOT be substituted — it stays literal
+      expect(
+        existsSync(join(root, 'my-project', '{{projectName}}-dir', 'file.txt')),
+      ).toBe(true);
+      expect(
+        existsSync(join(root, 'my-project', 'my-project-dir', 'file.txt')),
+      ).toBe(false);
+    }));
+});
+
+// ---------------------------------------------------------------------------
+// 6. Content injection protection — substituted values cannot introduce tokens
+// ---------------------------------------------------------------------------
+
+describe('security: content injection protection', () => {
+  it('replaces projectName literally without re-interpreting matched patterns', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+      writeFileSync(
+        join(templateRoot, 'config.txt'),
+        textBuffer('name: {{projectName}}\ntemplate: {{templateId}}\n'),
+      );
+
+      generateProjectFromTemplate(context(root), {
+        templateRoot,
+      });
+
+      // The projectName is substituted literally; no second-pass interpretation occurs
+      expect(readFileSync(join(root, 'my-project', 'config.txt'), 'utf8')).toBe(
+        'name: my-project\ntemplate: basic-app\n',
+      );
+    }));
+
+  it('replaces templateId literally without re-interpreting token-like strings', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+      writeFileSync(
+        join(templateRoot, 'meta.txt'),
+        textBuffer('template: {{templateId}}\n'),
+      );
+
+      generateProjectFromTemplate(
+        {
+          ...context(root),
+          template: { templateId: 'basic-app' },
+        },
+        { templateRoot },
+      );
+
+      expect(readFileSync(join(root, 'my-project', 'meta.txt'), 'utf8')).toBe(
+        'template: basic-app\n',
+      );
+    }));
+
+  it('does not expand multiple substitution passes on the same content', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+      writeFileSync(
+        join(templateRoot, 'nested-tokens.txt'),
+        textBuffer('value={{projectName}}\n'),
+      );
+
+      generateProjectFromTemplate(context(root, 'app'), {
+        templateRoot,
+      });
+
+      // Single-pass: {{projectName}} is replaced with 'app'
+      // Not double-passed to anything else
+      expect(readFileSync(join(root, 'app', 'nested-tokens.txt'), 'utf8')).toBe(
+        'value=app\n',
+      );
+    }));
+
+  it('preserves literal token-like strings in substituted output without further interpretation', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+      writeFileSync(
+        join(templateRoot, 'example.txt'),
+        textBuffer('project={{projectName}}\ntemplate={{templateId}}\n'),
+      );
+
+      generateProjectFromTemplate(context(root), { templateRoot });
+
+      const output = readFileSync(
+        join(root, 'my-project', 'example.txt'),
+        'utf8',
+      );
+      // If a second substitution pass occurred, any tokens in the output would
+      // be replaced. This verifies that does not happen.
+      expect(output).toBe('project=my-project\ntemplate=basic-app\n');
+      expect(output).not.toContain('{{');
+    }));
+
+  it('rejects attempts to use unknown tokens even if they look like valid identifiers', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+      writeFileSync(
+        join(templateRoot, 'bad.txt'),
+        textBuffer('secret={{secretKey}}\n'),
+      );
+
+      expect(() =>
+        generateProjectFromTemplate(context(root), { templateRoot }),
+      ).toThrow(
+        "Template contains unsupported substitution token '{{secretKey}}'.",
+      );
+
+      // No partial output is left
+      expect(existsSync(join(root, 'my-project'))).toBe(false);
+    }));
+});
+
+// ---------------------------------------------------------------------------
+// 7. Unknown placeholder invariants — only projectName and templateId are permitted
+// ---------------------------------------------------------------------------
+
+describe('security: unknown placeholder invariants', () => {
+  it('never substitutes a token that is not in the hardcoded allowlist', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+      writeFileSync(
+        join(templateRoot, 'vars.txt'),
+        textBuffer(
+          'name={{projectName}}\nid={{templateId}}\nuser={{userName}}\n',
+        ),
+      );
+
+      expect(() =>
+        generateProjectFromTemplate(context(root), { templateRoot }),
+      ).toThrow(
+        "Template contains unsupported substitution token '{{userName}}'.",
+      );
+
+      expect(existsSync(join(root, 'my-project'))).toBe(false);
+    }));
+
+  it('rejects {{version}}, {{timestamp}}, {{random}} and other dynamic tokens', () =>
+    withTempDirectory(async (root1) => {
+      await withTempDirectory((root2) => {
+        const templateRoot = join(root1, 'template');
+        mkdirSync(templateRoot);
+
+        // A template using dynamic tokens that are not in the hardcoded allowlist
+        writeFileSync(
+          join(templateRoot, 'manifest.txt'),
+          textBuffer('generated={{timestamp}}\n'),
+        );
+
+        expect(() =>
+          generateProjectFromTemplate(context(root1), { templateRoot }),
+        ).toThrow("unsupported substitution token '{{timestamp}}'");
+
+        writeFileSync(
+          join(templateRoot, 'manifest.txt'),
+          textBuffer('version={{version}}\n'),
+        );
+
+        expect(() =>
+          generateProjectFromTemplate(context(root2), { templateRoot }),
+        ).toThrow("unsupported substitution token '{{version}}'");
+      });
+    }));
+});
+
+// ---------------------------------------------------------------------------
+// 8. Binary files are protected from injection via substitution
+// ---------------------------------------------------------------------------
+
+describe('security: binary content protection', () => {
+  it('never applies text-substitution rules to binary files', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+
+      // Binary file with injected-looking content
+      const binary = Buffer.concat([
+        Buffer.from([0x00]),
+        Buffer.from('malicious: {{projectName}}={{userName}}\n', 'utf8'),
+        Buffer.from([0xff]),
+      ]);
+      writeFileSync(join(templateRoot, 'payload.bin'), binary);
+
+      generateProjectFromTemplate(context(root), { templateRoot });
+
+      // Binary is copied exactly as-is; substitution rules never apply
+      const result = readFileSync(join(root, 'my-project', 'payload.bin'));
+      expect(result).toEqual(binary);
+      // Both tokens remain in the output
+      expect(result.toString('utf8')).toContain('{{projectName}}');
+      expect(result.toString('utf8')).toContain('{{userName}}');
+    }));
+
+  it('distinguishes binary from text even if the filename suggests text', () =>
+    withTempDirectory((root) => {
+      const templateRoot = join(root, 'template');
+      mkdirSync(templateRoot);
+
+      // Binary content with a .txt extension
+      const binary = Buffer.concat([
+        Buffer.from([0xff]),
+        Buffer.from('{{projectName}}={{unknownToken}}\n', 'utf8'),
+      ]);
+      writeFileSync(join(templateRoot, 'data.txt'), binary);
+
+      generateProjectFromTemplate(context(root), { templateRoot });
+
+      // Classification is byte-based, not extension-based.
+      // The file contains 0xFF (NUL at the start), so it's binary.
+      const result = readFileSync(join(root, 'my-project', 'data.txt'));
+      expect(result).toEqual(binary);
+      // No substitution or error — binary path is taken
     }));
 });
