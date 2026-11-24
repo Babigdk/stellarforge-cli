@@ -4,11 +4,14 @@ import { fileURLToPath } from 'node:url';
 import { ValidationCliError } from '../errors/errors.js';
 import { TEMPLATE_IDS, type TemplateId } from './template-registry.js';
 
-const BUNDLED_TEMPLATE_DIRECTORIES: Record<TemplateId, string> =
-  Object.fromEntries(TEMPLATE_IDS.map((id) => [id, id])) as Record<
-    TemplateId,
-    string
-  >;
+/**
+ * Maps supported template IDs to their bundled directory names.
+ *
+ * Template directories use the same names as their registry IDs.
+ */
+const BUNDLED_TEMPLATE_DIRECTORIES: Readonly<Record<TemplateId, string>> = {
+  ...Object.fromEntries(TEMPLATE_IDS.map((id) => [id, id])),
+} as Record<TemplateId, string>;
 
 export const GENERATED_FILE_MODE = 0o644;
 export const GENERATED_EXECUTABLE_FILE_MODE = 0o755;
@@ -28,8 +31,13 @@ export interface TemplateSourceTree {
 }
 
 export function resolveBundledTemplateRoot(templateId: string): string {
-  const directory =
-    BUNDLED_TEMPLATE_DIRECTORIES[templateId as TemplateId];
+  if (!TEMPLATE_IDS.includes(templateId as TemplateId)) {
+    throw new ValidationCliError(
+      'The selected template is not available in this CLI version.',
+    );
+  }
+
+  const directory = BUNDLED_TEMPLATE_DIRECTORIES[templateId as TemplateId];
 
   if (directory === undefined) {
     throw new ValidationCliError(

@@ -1,3 +1,4 @@
+
 name: CI
 
 on:
@@ -13,11 +14,15 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: '22.13.0'
+  CI: true
+
 jobs:
   quality:
     name: Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -28,16 +33,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '22.13.0'
-          package-manager-cache: false
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
 
-      - name: Install from committed lockfile
+      - name: Install dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Validate GitHub Actions workflows with actionlint
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+      - name: Validate GitHub Actions workflows
+        uses: rhysd/actionlint@v1.7.7
 
-      - name: Audit workflow least-privilege permissions
+      - name: Audit workflow permissions
         run: npm run audit:workflow-permissions
 
       - name: Typecheck
@@ -49,17 +55,20 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
-      - name: Test
+      - name: Run tests
         run: npm test
 
       - name: Build
         run: npm run build
 
-      - name: E2E smoke
+      - name: E2E smoke tests
         run: npm run test:e2e
 
   platform:
     name: Platform / ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+
     strategy:
       fail-fast: false
       matrix:
@@ -67,18 +76,18 @@ jobs:
           - name: Linux / Node 22
             os: ubuntu-latest
             node: '22.13.0'
+
           - name: Linux / Node 24
             os: ubuntu-latest
             node: '24'
+
           - name: macOS / Node 22
             os: macos-latest
             node: '22.13.0'
+
           - name: Windows / Node 22
             os: windows-latest
             node: '22.13.0'
-
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
 
     steps:
       - name: Checkout repository
@@ -90,66 +99,56 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node }}
-          package-manager-cache: false
+          cache: npm
+          cache-dependency-path: package-lock.json
 
-      - name: Install from committed lockfile
+      - name: Install dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Run platform test suite
+      - name: Run tests
         run: npm test
 
-      - name: Build platform artifact
+      - name: Build
         run: npm run build
 
-      - name: Smoke / basic-app / generate
-        run: node dist/cli.js new smoke-basic-app --template basic-app
+      - name: Smoke test generated templates
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Smoke / basic-app / install
-        working-directory: ./smoke-basic-app
-        run: npm install --ignore-scripts --no-audit --no-fund
+          templates=(
+            basic-app
+            api-service
+            full-stack
+          )
 
-      - name: Smoke / basic-app / check
-        working-directory: ./smoke-basic-app
-        run: npm run check
+          for template in "${templates[@]}"; do
+            project="smoke-${template}"
 
-      - name: Smoke / basic-app / test
-        working-directory: ./smoke-basic-app
-        run: npm test
+            echo "Generating ${template}..."
 
-      - name: Smoke / api-service / generate
-        run: node dist/cli.js new smoke-api-service --template api-service
+            node dist/cli.js new "$project" --template "$template"
 
-      - name: Smoke / api-service / install
-        working-directory: ./smoke-api-service
-        run: npm install --ignore-scripts --no-audit --no-fund
+            echo "Installing ${template}..."
 
-      - name: Smoke / api-service / check
-        working-directory: ./smoke-api-service
-        run: npm run check
+            npm --prefix "$project" install \
+              --ignore-scripts \
+              --no-audit \
+              --no-fund
 
-      - name: Smoke / api-service / test
-        working-directory: ./smoke-api-service
-        run: npm test
+            echo "Checking ${template}..."
 
-      - name: Smoke / full-stack / generate
-        run: node dist/cli.js new smoke-full-stack --template full-stack
+            npm --prefix "$project" run check
 
-      - name: Smoke / full-stack / install
-        working-directory: ./smoke-full-stack
-        run: npm install --ignore-scripts --no-audit --no-fund
+            echo "Testing ${template}..."
 
-      - name: Smoke / full-stack / check
-        working-directory: ./smoke-full-stack
-        run: npm run check
-
-      - name: Smoke / full-stack / test
-        working-directory: ./smoke-full-stack
-        run: npm test
+            npm --prefix "$project" test
+          done
 
   cargo-smoke:
     name: Smart Contract / Cargo metadata & tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -160,22 +159,26 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '22.13.0'
-          package-manager-cache: false
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
 
-      - name: Install from committed lockfile
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Build CLI
         run: npm run build
 
-      - name: Smoke / smart-contract / generate
+      - name: Generate smart contract project
         run: node dist/cli.js new smoke-smart-contract --template smart-contract
 
-      - name: Smoke / smart-contract / cargo metadata
+      - name: Validate Cargo metadata
         working-directory: ./smoke-smart-contract
         run: cargo metadata --no-deps --format-version 1
 
-      - name: Smoke / smart-contract / cargo test
+      - name: Run Cargo tests
         working-directory: ./smoke-smart-contract
         run: cargo test
