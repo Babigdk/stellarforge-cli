@@ -1,11 +1,22 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import {
+  isPackageJsonMissing,
+  readPackageJsonManifest,
   resolveProjectPath,
-  resolveProjectRoot,
+  selectProjectRoot,
   type DevProcessSpec,
 } from '../dev/project.js';
-import { ValidationCliError } from '../errors/errors.js';
-import { createNpmInvocation } from '../process/npm.js';
+import {
+  superviseDevProcesses,
+  type DevOrchestratorOptions,
+} from '../dev/orchestrator.js';
+import { SubprocessCliError, ValidationCliError } from '../errors/errors.js';
+import {
+  classifyNpmInvocationError,
+  createNpmInvocation,
+  isNpmInvocation,
+  npmInvocationRemediation,
+} from '../process/npm.js';
 
 export { DETERMINISTIC_LOCALE_ENVIRONMENT } from '../dev/environment.js';
 
@@ -17,20 +28,11 @@ interface ProjectPackage {
 function resolveNodeTestPlan(projectRoot: string): DevProcessSpec | undefined {
   const packagePath = resolveProjectPath(projectRoot, 'package.json');
 
-  if (!existsSync(packagePath)) {
+  if (isPackageJsonMissing(packagePath)) {
     return undefined;
   }
 
-  let projectPackage: ProjectPackage;
-  try {
-    projectPackage = JSON.parse(
-      readFileSync(packagePath, 'utf8'),
-    ) as ProjectPackage;
-  } catch (error) {
-    throw new ValidationCliError('package.json is not valid JSON.', {
-      cause: error,
-    });
-  }
+  const projectPackage = readPackageJsonManifest(packagePath) as ProjectPackage;
 
   if (
     projectPackage.scripts === null ||

@@ -1,14 +1,59 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ValidationCliError } from '../src/errors/errors.js';
 import { createNpmInvocation } from '../src/process/npm.js';
 import {
+  MAX_PACKAGE_JSON_BYTES,
+  readPackageJsonManifest,
   resolveDevProcessPlan,
   resolveProjectPath,
   resolveProjectRoot,
 } from '../src/dev/project.js';
-import { withTempDirectory } from './helpers/index.js';
+import {
+  createTempDirectoryFixture,
+  withTempDirectory,
+} from './helpers/index.js';
+
+function canCreateSymlink(): boolean {
+  const fixture = createTempDirectoryFixture();
+  try {
+    const target = join(fixture.path, 'target');
+    writeFileSync(target, 'link-target');
+    symlinkSync(target, join(fixture.path, 'link'));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
+const symlinksSupported = canCreateSymlink();
+
+function captureValidationMessage(action: () => unknown): string {
+  try {
+    action();
+  } catch (error) {
+    expect(error).toBeInstanceOf(ValidationCliError);
+    return (error as Error).message;
+  }
+
+  throw new Error('Expected the resolver to reject the project.');
+}
+
+function writeDevManifestOfSize(root: string, size: number): string {
+  const base = JSON.stringify({
+    name: 'demo',
+    scripts: { dev: 'node dev.js' },
+  });
+  const padding = size - Buffer.byteLength(base);
+  expect(padding).toBeGreaterThanOrEqual(0);
+
+  const content = base + ' '.repeat(padding);
+  writeFileSync(join(root, 'package.json'), content);
+  return content;
+}
 
 describe('development project plan', () => {
   it('selects a safe npm start script from a generated Node project', () =>
@@ -198,4 +243,124 @@ describe('development project plan', () => {
         expect(arg).not.toContain(projectRoot);
       }
     }));
+
+  it('accepts a package.json exactly at the documented byte limit', () =>
+    withTempDirectory((root) => {
+      const content = writeDevManifestOfSize(root, MAX_PACKAGE_JSON_BYTES);
+      expect(Buffer.byteLength(content)).toBe(MAX_PACKAGE_JSON_BYTES);
+
+      const [spec] = resolveDevProcessPlan(root);
+      expect(spec).toMatchObject({ cwd: root });
+    }));
+
+  it('rejects an oversized package.json without echoing its path or content', () =>
+    withTempDirectory((root) => {
+      const content = writeDevManifestOfSize(root, MAX_PACKAGE_JSON_BYTES + 1);
+      expect(Buffer.byteLength(content)).toBe(MAX_PACKAGE_JSON_BYTES + 1);
+
+      const readMessage = (): string => {
+        try {
+          resolveDevProcessPlan(root);
+          return '';
+        } catch (error) {
+          expect(error).toBeInstanceOf(ValidationCliError);
+          return (error as Error).message;
+        }
+      };
+
+      const message = readMessage();
+      expect(message).toContain('package.json exceeds');
+      expect(message).toContain(`${MAX_PACKAGE_JSON_BYTES} bytes`);
+      expect(message).not.toContain(root);
+      expect(message).not.toContain('node dev.js');
+    }));
+
+  it('keeps a missing manifest distinguishable from a directory entry', () =>
+    withTempDirectory((root) => {
+      writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+
+      const missing = captureValidationMessage(() =>
+        resolveDevProcessPlan(root),
+      );
+      expect(missing).toContain('No package.json was found');
+
+      mkdirSync(join(root, 'package.json'));
+      const invalid = captureValidationMessage(() =>
+        resolveDevProcessPlan(root),
+      );
+      expect(invalid).toContain('must be a regular project file');
+      expect(invalid).not.toContain(root);
+    }));
+
+  it('applies the regular-file policy in the shared manifest reader', () =>
+    withTempDirectory((root) => {
+      const packagePath = join(root, 'package.json');
+      mkdirSync(packagePath);
+
+      expect(() => readPackageJsonManifest(packagePath)).toThrow(
+        'must be a regular project file',
+      );
+    }));
+
+  it.skipIf(!symlinksSupported)(
+    'rejects a file symlink as package.json without reading its target',
+    () =>
+      withTempDirectory((root) => {
+        const target = join(root, 'outside-manifest.json');
+        writeFileSync(
+          target,
+          JSON.stringify({
+            name: 'target',
+            scripts: { dev: 'NODE_DEV_SYMLINK_TARGET_MARKER' },
+          }),
+        );
+        symlinkSync(target, join(root, 'package.json'));
+
+        const message = captureValidationMessage(() =>
+          resolveDevProcessPlan(root),
+        );
+        expect(message).toContain('not a symbolic link');
+        expect(message).not.toContain(root);
+        expect(message).not.toContain(target);
+        expect(message).not.toContain('NODE_DEV_SYMLINK_TARGET_MARKER');
+      }),
+  );
+
+  it.skipIf(!symlinksSupported)(
+    'rejects a dangling package.json symlink instead of treating it as missing',
+    () =>
+      withTempDirectory((root) => {
+        const target = join(root, 'missing-target.json');
+        symlinkSync(target, join(root, 'package.json'));
+
+        const message = captureValidationMessage(() =>
+          resolveDevProcessPlan(root),
+        );
+        expect(message).toContain('not a symbolic link');
+        expect(message).not.toContain('No package.json was found');
+        expect(message).not.toContain(root);
+        expect(message).not.toContain(target);
+      }),
+  );
+
+  it.skipIf(!symlinksSupported)(
+    'rejects a directory symlink in place of package.json',
+    () =>
+      withTempDirectory((root) => {
+        const target = join(root, 'manifest-directory');
+        mkdirSync(target);
+        symlinkSync(
+          target,
+          join(root, 'package.json'),
+          process.platform === 'win32' ? 'junction' : 'dir',
+        );
+
+        const message = captureValidationMessage(() =>
+          resolveDevProcessPlan(root),
+        );
+        expect(message).toContain('not a symbolic link');
+        expect(message).not.toContain(root);
+        expect(message).not.toContain(target);
+      }),
+  );
 });
