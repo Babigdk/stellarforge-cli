@@ -1,5 +1,4 @@
 import {
-  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -27,7 +26,6 @@ import type {
 
 const SUBSTITUTION_TOKEN = /\{\{([A-Za-z][A-Za-z0-9]*)\}\}/g;
 
-
 // npm-packlist always excludes .gitignore files from published packages,
 // regardless of the package.json files field. Template gitignore files are
 // therefore stored without the leading dot so they survive npm pack. This
@@ -37,14 +35,12 @@ const DOTFILE_REMAP: Readonly<Record<string, string>> = {
   gitignore: '.gitignore',
 };
 
-
 /** Maximum number of files a template may contain (25× the largest bundled template). */
 export const MAX_TEMPLATE_FILE_COUNT = 256;
 /** Maximum aggregate bytes of regular files (~55× the largest bundled template). */
 export const MAX_TEMPLATE_TOTAL_BYTES = 1024 * 1024;
 /** Maximum bytes of a single template file (~46× the largest bundled template file). */
 export const MAX_TEMPLATE_FILE_BYTES = 256 * 1024;
-
 
 export interface TemplateGenerationOptions {
   readonly templateRoot: string;
@@ -68,13 +64,6 @@ export const GENERATED_MARKER_FILENAME = '.stellarforge.json';
 /** Package identifier recorded in the generated provenance marker. */
 export const GENERATOR_PACKAGE_NAME = '@diginodes/stellarforge-cli';
 
-interface RenderedTemplateFile {
-  readonly relativePath: string;
-  readonly content: Buffer | string;
-  readonly substitutions: readonly string[];
-  readonly mode: number;
-}
-
 function isWithin(root: string, candidate: string): boolean {
   const pathFromRoot = relative(root, candidate);
 
@@ -84,6 +73,18 @@ function isWithin(root: string, candidate: string): boolean {
     !pathFromRoot.startsWith(`..${sep}`) &&
     !isAbsolute(pathFromRoot)
   );
+}
+
+function assertSafeEntryName(name: string): void {
+  if (
+    name.length === 0 ||
+    name === '.' ||
+    name === '..' ||
+    name.includes('/') ||
+    name.includes('\\')
+  ) {
+    throw new ValidationCliError('Template contains an unsafe file path.');
+  }
 }
 
 function renderText(
@@ -238,7 +239,6 @@ function visitTemplateTree(
     const destinationRelativePath = join(relativeDirectory, destinationName);
     const sourcePath = resolve(templateRoot, relativePath);
 
-
     if (!isWithin(templateRoot, sourcePath)) {
       throw new ValidationCliError(
         'Template file path escapes the trusted project root.',
@@ -247,15 +247,11 @@ function visitTemplateTree(
 
     const sourceStat = lstatSync(sourcePath);
 
-      const rendered = renderText(content.toString('utf8'), variables);
-      return {
-        relativePath: entry.relativePath,
-        content: rendered.content,
-        substitutions: rendered.substitutions,
-        mode: entry.mode,
-      };
-    });
-}
+    if (sourceStat.isSymbolicLink()) {
+      throw new ValidationCliError(
+        'Template symbolic links are not supported.',
+      );
+    }
 
     if (sourceStat.isDirectory()) {
       visitDirectory(relativePath);
@@ -270,11 +266,13 @@ function visitTemplateTree(
       continue;
     }
 
-  if (!isWithin(stagingRoot, destinationPath)) {
-    throw new ValidationCliError(
-      'Template file path escapes the trusted project root.',
-    );
-  }
+    if (!sourceStat.isFile()) {
+      throw new ValidationCliError(
+        'Template contains an unsupported filesystem entry.',
+      );
+    }
+
+    const content = readFileSync(sourcePath);
 
     if (isBinary(content)) {
       visitFile(destinationRelativePath, content, []);
@@ -282,12 +280,12 @@ function visitTemplateTree(
     }
 
     const rendered = renderText(content.toString('utf8'), variables);
-    visitFile(destinationRelativePath, rendered.content, rendered.substitutions);
+    visitFile(
+      destinationRelativePath,
+      rendered.content,
+      rendered.substitutions,
+    );
   }
-
-  const mode = resolveGeneratedFileMode(file.mode);
-  writeFileSync(destinationPath, file.content, { mode });
-  chmodSync(destinationPath, mode);
 }
 
 function assertDestinationContainment(root: string, destination: string): void {
@@ -393,8 +391,6 @@ export function generateProjectFromTemplate(
     projectName: context.input.projectName,
     templateId: context.template.templateId,
   };
-  const renderedFiles = renderTemplateFiles(tree, variables);
-
   if (options.dryRun) {
     const files: ProjectGenerationPreviewFile[] = [];
     visitTemplateTree(
@@ -439,17 +435,11 @@ export function generateProjectFromTemplate(
           );
         }
 
-      const destinationPath = resolveStagingPath(
-        stagingRoot,
-        entry.relativePath,
-      );
-      mkdirSync(destinationPath, {
-        recursive: true,
-        mode: GENERATED_DIRECTORY_MODE,
-      });
-    }
-
-        mkdirSync(destinationPath, { recursive: false });
+        mkdirSync(dirname(destinationPath), { recursive: true });
+        writeFileSync(destinationPath, content);
+      },
+      (relativePath) => {
+        mkdirSync(resolve(stagingRoot, relativePath), { recursive: true });
       },
       options.isCancelled,
     );
