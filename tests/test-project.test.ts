@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { ValidationCliError } from '../src/errors/errors.js';
@@ -6,14 +6,43 @@ import { createNpmInvocation } from '../src/process/npm.js';
 import { createTestCommand } from '../src/commands/test.js';
 import {
   MAX_PACKAGE_JSON_BYTES,
+  resolveDevProcessPlan,
   resolveProjectPath,
   resolveProjectRoot,
 } from '../src/dev/project.js';
 import { resolveTestProcessPlan } from '../src/testing/project.js';
 import {
   createCapturedTerminalOutput,
+  createTempDirectoryFixture,
   withTempDirectory,
 } from './helpers/index.js';
+
+function canCreateSymlink(): boolean {
+  const fixture = createTempDirectoryFixture();
+  try {
+    const target = join(fixture.path, 'target');
+    writeFileSync(target, 'link-target');
+    symlinkSync(target, join(fixture.path, 'link'));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
+const symlinksSupported = canCreateSymlink();
+
+function captureValidationMessage(action: () => unknown): string {
+  try {
+    action();
+  } catch (error) {
+    expect(error).toBeInstanceOf(ValidationCliError);
+    return (error as Error).message;
+  }
+
+  throw new Error('Expected the resolver to reject the project.');
+}
 
 function writeTestManifestOfSize(root: string, size: number): string {
   const base = JSON.stringify({
@@ -208,4 +237,95 @@ describe('project test workflow resolution', () => {
       expect(message).not.toContain(root);
       expect(message).not.toContain('vitest run');
     }));
+
+  it('keeps a missing manifest distinguishable from a directory entry', () =>
+    withTempDirectory((root) => {
+      writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+      expect(resolveTestProcessPlan(root)).toEqual([
+        {
+          label: 'cargo:test',
+          command: process.platform === 'win32' ? 'cargo.exe' : 'cargo',
+          args: ['test'],
+          cwd: root,
+        },
+      ]);
+
+      mkdirSync(join(root, 'package.json'));
+      const message = captureValidationMessage(() =>
+        resolveTestProcessPlan(root),
+      );
+      expect(message).toContain('must be a regular project file');
+      expect(message).not.toContain(root);
+    }));
+
+  it('applies the same entry policy as the dev resolver', () =>
+    withTempDirectory((root) => {
+      mkdirSync(join(root, 'package.json'));
+
+      expect(captureValidationMessage(() => resolveDevProcessPlan(root))).toBe(
+        captureValidationMessage(() => resolveTestProcessPlan(root)),
+      );
+    }));
+
+  it.skipIf(!symlinksSupported)(
+    'rejects a file symlink as package.json without reading its target',
+    () =>
+      withTempDirectory((root) => {
+        const target = join(root, 'outside-manifest.json');
+        writeFileSync(
+          target,
+          JSON.stringify({
+            name: 'target',
+            scripts: { test: 'TEST_SYMLINK_TARGET_MARKER' },
+          }),
+        );
+        symlinkSync(target, join(root, 'package.json'));
+
+        const message = captureValidationMessage(() =>
+          resolveTestProcessPlan(root),
+        );
+        expect(message).toContain('not a symbolic link');
+        expect(message).not.toContain(root);
+        expect(message).not.toContain(target);
+        expect(message).not.toContain('TEST_SYMLINK_TARGET_MARKER');
+      }),
+  );
+
+  it.skipIf(!symlinksSupported)(
+    'rejects a dangling package.json symlink instead of falling back to Cargo',
+    () =>
+      withTempDirectory((root) => {
+        writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+        const target = join(root, 'missing-target.json');
+        symlinkSync(target, join(root, 'package.json'));
+
+        const message = captureValidationMessage(() =>
+          resolveTestProcessPlan(root),
+        );
+        expect(message).toContain('not a symbolic link');
+        expect(message).not.toContain(root);
+        expect(message).not.toContain(target);
+      }),
+  );
+
+  it.skipIf(!symlinksSupported)(
+    'rejects a directory symlink in place of package.json',
+    () =>
+      withTempDirectory((root) => {
+        const target = join(root, 'manifest-directory');
+        mkdirSync(target);
+        symlinkSync(
+          target,
+          join(root, 'package.json'),
+          process.platform === 'win32' ? 'junction' : 'dir',
+        );
+
+        const message = captureValidationMessage(() =>
+          resolveTestProcessPlan(root),
+        );
+        expect(message).toContain('not a symbolic link');
+        expect(message).not.toContain(root);
+        expect(message).not.toContain(target);
+      }),
+  );
 });

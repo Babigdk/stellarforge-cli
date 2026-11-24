@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import {
+  isPackageJsonMissing,
   readPackageJsonManifest,
   resolveProjectPath,
   selectProjectRoot,
@@ -27,7 +28,7 @@ interface ProjectPackage {
 function resolveNodeTestPlan(projectRoot: string): DevProcessSpec | undefined {
   const packagePath = resolveProjectPath(projectRoot, 'package.json');
 
-  if (!existsSync(packagePath)) {
+  if (isPackageJsonMissing(packagePath)) {
     return undefined;
   }
 
