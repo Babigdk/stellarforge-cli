@@ -139,13 +139,25 @@ export function getBackendConfig(env = globalThis.process.env) {
   };
 }
 
-export function createHealthPayload(env = {}) {
-  const config = getBackendConfig(env);
+/**
+ * Versioned public health contract.
+ *
+ * Keep this payload independent of runtime configuration and implementation
+ * details so generated frontends can rely on a stable, minimal response.
+ */
+export const HEALTH_CONTRACT_VERSION = 1;
 
+export function createHealthPayload() {
   return {
     status: 'ok',
-    app: '{{projectName}}',
-    network: config.network,
+    version: HEALTH_CONTRACT_VERSION,
+  };
+}
+
+export function createHealthUnavailablePayload() {
+  return {
+    status: 'unavailable',
+    version: HEALTH_CONTRACT_VERSION,
   };
 }
 
@@ -302,7 +314,24 @@ export function createRequestHandler(
         return;
       }
 
-      await route.handler(request, response);
+      try {
+        await route.handler(request, response);
+      } catch {
+        // Never serialize thrown errors: they may contain secrets or internals.
+        if (response.destroyed || response.writableEnded) {
+          return;
+        }
+        if (response.headersSent) {
+          response.destroy();
+          return;
+        }
+
+        if (pathname === '/health') {
+          sendJson(response, 503, createHealthUnavailablePayload());
+        } else {
+          sendJson(response, 500, { error: 'internal_error' });
+        }
+      }
       return;
     }
 
