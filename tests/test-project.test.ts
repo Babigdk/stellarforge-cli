@@ -5,6 +5,7 @@ import { ValidationCliError } from '../src/errors/errors.js';
 import { createNpmInvocation } from '../src/process/npm.js';
 import { createTestCommand } from '../src/commands/test.js';
 import {
+  MAX_PACKAGE_JSON_BYTES,
   resolveProjectPath,
   resolveProjectRoot,
 } from '../src/dev/project.js';
@@ -13,6 +14,19 @@ import {
   createCapturedTerminalOutput,
   withTempDirectory,
 } from './helpers/index.js';
+
+function writeTestManifestOfSize(root: string, size: number): string {
+  const base = JSON.stringify({
+    name: 'demo',
+    scripts: { test: 'vitest run' },
+  });
+  const padding = size - Buffer.byteLength(base);
+  expect(padding).toBeGreaterThanOrEqual(0);
+
+  const content = base + ' '.repeat(padding);
+  writeFileSync(join(root, 'package.json'), content);
+  return content;
+}
 
 describe('project test workflow resolution', () => {
   it('resolves a Node.js test script without executing package script text directly', () =>
@@ -110,7 +124,7 @@ describe('project test workflow resolution', () => {
     withTempDirectory((root) => {
       expect(() => resolveTestProcessPlan(root)).toThrow(ValidationCliError);
       expect(() => resolveTestProcessPlan(root)).toThrow(
-        'No supported StellarForge test workflow',
+        'No supported StellarForge project root',
       );
 
       writeFileSync(join(root, 'package.json'), '{not-json');
@@ -162,5 +176,36 @@ describe('project test workflow resolution', () => {
       for (const arg of spec?.args ?? []) {
         expect(arg).not.toContain(projectRoot);
       }
+    }));
+
+  it('accepts a package.json exactly at the documented byte limit', () =>
+    withTempDirectory((root) => {
+      const content = writeTestManifestOfSize(root, MAX_PACKAGE_JSON_BYTES);
+      expect(Buffer.byteLength(content)).toBe(MAX_PACKAGE_JSON_BYTES);
+
+      const [spec] = resolveTestProcessPlan(root);
+      expect(spec).toMatchObject({ cwd: root });
+    }));
+
+  it('rejects an oversized package.json without echoing its path or content', () =>
+    withTempDirectory((root) => {
+      const content = writeTestManifestOfSize(root, MAX_PACKAGE_JSON_BYTES + 1);
+      expect(Buffer.byteLength(content)).toBe(MAX_PACKAGE_JSON_BYTES + 1);
+
+      const readMessage = (): string => {
+        try {
+          resolveTestProcessPlan(root);
+          return '';
+        } catch (error) {
+          expect(error).toBeInstanceOf(ValidationCliError);
+          return (error as Error).message;
+        }
+      };
+
+      const message = readMessage();
+      expect(message).toContain('package.json exceeds');
+      expect(message).toContain(`${MAX_PACKAGE_JSON_BYTES} bytes`);
+      expect(message).not.toContain(root);
+      expect(message).not.toContain('vitest run');
     }));
 });

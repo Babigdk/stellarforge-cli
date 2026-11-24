@@ -4,11 +4,25 @@ import { describe, expect, it } from 'vitest';
 import { ValidationCliError } from '../src/errors/errors.js';
 import { createNpmInvocation } from '../src/process/npm.js';
 import {
+  MAX_PACKAGE_JSON_BYTES,
   resolveDevProcessPlan,
   resolveProjectPath,
   resolveProjectRoot,
 } from '../src/dev/project.js';
 import { withTempDirectory } from './helpers/index.js';
+
+function writeDevManifestOfSize(root: string, size: number): string {
+  const base = JSON.stringify({
+    name: 'demo',
+    scripts: { dev: 'node dev.js' },
+  });
+  const padding = size - Buffer.byteLength(base);
+  expect(padding).toBeGreaterThanOrEqual(0);
+
+  const content = base + ' '.repeat(padding);
+  writeFileSync(join(root, 'package.json'), content);
+  return content;
+}
 
 describe('development project plan', () => {
   it('selects a safe npm start script from a generated Node project', () =>
@@ -197,5 +211,36 @@ describe('development project plan', () => {
       for (const arg of spec?.args ?? []) {
         expect(arg).not.toContain(projectRoot);
       }
+    }));
+
+  it('accepts a package.json exactly at the documented byte limit', () =>
+    withTempDirectory((root) => {
+      const content = writeDevManifestOfSize(root, MAX_PACKAGE_JSON_BYTES);
+      expect(Buffer.byteLength(content)).toBe(MAX_PACKAGE_JSON_BYTES);
+
+      const [spec] = resolveDevProcessPlan(root);
+      expect(spec).toMatchObject({ cwd: root });
+    }));
+
+  it('rejects an oversized package.json without echoing its path or content', () =>
+    withTempDirectory((root) => {
+      const content = writeDevManifestOfSize(root, MAX_PACKAGE_JSON_BYTES + 1);
+      expect(Buffer.byteLength(content)).toBe(MAX_PACKAGE_JSON_BYTES + 1);
+
+      const readMessage = (): string => {
+        try {
+          resolveDevProcessPlan(root);
+          return '';
+        } catch (error) {
+          expect(error).toBeInstanceOf(ValidationCliError);
+          return (error as Error).message;
+        }
+      };
+
+      const message = readMessage();
+      expect(message).toContain('package.json exceeds');
+      expect(message).toContain(`${MAX_PACKAGE_JSON_BYTES} bytes`);
+      expect(message).not.toContain(root);
+      expect(message).not.toContain('node dev.js');
     }));
 });
