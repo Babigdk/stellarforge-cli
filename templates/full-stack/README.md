@@ -43,6 +43,30 @@ npm run start:backend
 
 The backend exposes `GET /health` and static frontend assets on `127.0.0.1:3000` by default. Open `http://127.0.0.1:3000/index.html` for the generated starter UI, or import `frontend/src/app.js` from your own page. Set `BACKEND_PORT` to override the port. The frontend has no server and no port variable at all.
 
+### Local health endpoint contract
+
+`GET http://127.0.0.1:3000/health` returns a minimal JSON contract. A healthy response is HTTP `200`:
+
+```json
+{
+  "status": "ok",
+  "version": 1
+}
+```
+
+If the health handler fails, the endpoint returns HTTP `503` with:
+
+```json
+{
+  "status": "unavailable",
+  "version": 1
+}
+```
+
+The `version` field identifies the health response contract, not the application release. Frontends must treat an absent or unsupported version, a missing/unknown status, malformed JSON, or a non-success HTTP response as unavailable. Additional response fields are ignored. Keep this public payload limited to `status` and `version`; do not add environment values, endpoint URLs, credentials, filesystem paths, or diagnostic details. A future incompatible contract change must increment `version` and update the generated frontend and tests together.
+
+Unexpected non-health route handler failures return HTTP `500` with the generic body `{ "error": "internal_error" }`; exception messages and stack details are not sent to clients.
+
 The starter page checks `GET /health` once on load. Its live status region announces `checking backend`, `backend healthy`, or `backend unavailable` as text, so status is not conveyed by color alone. If the backend is unavailable, activate the **Retry backend status** button to try again; the button is disabled while a request is in flight, and the page never polls automatically.
 
 On `SIGINT` or `SIGTERM`, the backend stops accepting new connections, drains active requests for up to five seconds, and then closes remaining connections so a stuck request cannot keep the process alive. Repeated signals do not start a second shutdown.

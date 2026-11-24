@@ -1,3 +1,5 @@
+export const HEALTH_CONTRACT_VERSION = 1;
+
 export const BACKEND_STATUS = Object.freeze({
   LOADING: 'loading',
   HEALTHY: 'healthy',
@@ -46,7 +48,7 @@ export function createBackendStatusClient({
 } = {}) {
   let state = BACKEND_STATUS.LOADING;
   let attempt = 0;
-  let inFlight = false;
+  let inFlightPromise = null;
 
   const getState = () => createStatusView(state, attempt);
 
@@ -54,42 +56,52 @@ export function createBackendStatusClient({
     onStatusChange(getState());
   };
 
-  const refresh = async () => {
-    if (inFlight) {
-      return getState();
+  const refresh = () => {
+    if (inFlightPromise) {
+      return inFlightPromise;
     }
 
-    inFlight = true;
     attempt += 1;
     state = BACKEND_STATUS.LOADING;
     notify();
 
-    try {
-      if (typeof fetchImpl !== 'function') {
-        throw new Error('fetch is unavailable');
+    inFlightPromise = (async () => {
+      try {
+        if (typeof fetchImpl !== 'function') {
+          throw new Error('fetch is unavailable');
+        }
+
+        const response = await fetchImpl(healthPath, {
+          headers: { accept: 'application/json' },
+        });
+        if (!response.ok) {
+          throw new Error('backend returned an error');
+        }
+
+        const payload = await response.json();
+        const isSupportedHealthPayload =
+          payload !== null &&
+          typeof payload === 'object' &&
+          !Array.isArray(payload) &&
+          payload.status === 'ok' &&
+          payload.version === HEALTH_CONTRACT_VERSION;
+
+        if (!isSupportedHealthPayload) {
+          throw new Error('backend returned an unsupported health response');
+        }
+
+        state = BACKEND_STATUS.HEALTHY;
+      } catch {
+        state = BACKEND_STATUS.UNAVAILABLE;
+      } finally {
+        inFlightPromise = null;
+        notify();
       }
 
-      const response = await fetchImpl(healthPath, {
-        headers: { accept: 'application/json' },
-      });
-      if (!response.ok) {
-        throw new Error('backend returned an error');
-      }
+      return getState();
+    })();
 
-      const payload = await response.json();
-      if (payload?.status !== 'ok') {
-        throw new Error('backend returned an unexpected payload');
-      }
-
-      state = BACKEND_STATUS.HEALTHY;
-    } catch {
-      state = BACKEND_STATUS.UNAVAILABLE;
-    } finally {
-      inFlight = false;
-      notify();
-    }
-
-    return getState();
+    return inFlightPromise;
   };
 
   return Object.freeze({ getState, refresh });

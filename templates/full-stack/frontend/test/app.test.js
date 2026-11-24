@@ -3,16 +3,20 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   BACKEND_STATUS,
+  HEALTH_CONTRACT_VERSION,
   createAppModel,
   createBackendStatusClient,
   createStatusView,
   renderBackendStatus,
 } from '../src/app.js';
 
-function createHealthyResponse() {
+function createHealthyResponse(payload = {
+  status: 'ok',
+  version: HEALTH_CONTRACT_VERSION,
+}) {
   return {
     ok: true,
-    json: async () => ({ status: 'ok' }),
+    json: async () => payload,
   };
 }
 
@@ -67,6 +71,71 @@ test('an initial backend failure renders an understandable unavailable state', a
   assert.equal(result.state, BACKEND_STATUS.UNAVAILABLE);
   assert.match(result.message, /backend unavailable/i);
   assert.deepEqual(states, ['loading', 'unavailable']);
+});
+
+test('accepts the documented versioned health response and ignores extra fields', async () => {
+  const client = createBackendStatusClient({
+    fetchImpl: async () =>
+      createHealthyResponse({
+        status: 'ok',
+        version: HEALTH_CONTRACT_VERSION,
+        futureOptionalField: 'ignored',
+      }),
+  });
+
+  const result = await client.refresh();
+  assert.equal(result.state, BACKEND_STATUS.HEALTHY);
+});
+
+test('treats missing, unknown, and malformed health fields as unavailable', async () => {
+  const invalidPayloads = [
+    { status: 'ok' },
+    { status: 'ok', version: 999 },
+    { version: HEALTH_CONTRACT_VERSION },
+    null,
+    [],
+    'ok',
+  ];
+
+  for (const payload of invalidPayloads) {
+    const client = createBackendStatusClient({
+      fetchImpl: async () => createHealthyResponse(payload),
+    });
+
+    const result = await client.refresh();
+    assert.equal(result.state, BACKEND_STATUS.UNAVAILABLE);
+  }
+
+  const malformedJsonClient = createBackendStatusClient({
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError('Unexpected token');
+      },
+    }),
+  });
+  assert.equal(
+    (await malformedJsonClient.refresh()).state,
+    BACKEND_STATUS.UNAVAILABLE,
+  );
+});
+
+test('treats an unavailable HTTP health response as unavailable', async () => {
+  const client = createBackendStatusClient({
+    fetchImpl: async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({
+        status: 'unavailable',
+        version: HEALTH_CONTRACT_VERSION,
+      }),
+    }),
+  });
+
+  assert.equal(
+    (await client.refresh()).state,
+    BACKEND_STATUS.UNAVAILABLE,
+  );
 });
 
 test('a user-triggered retry recovers when the backend returns', async () => {
