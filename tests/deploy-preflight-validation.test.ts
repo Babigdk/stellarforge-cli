@@ -6,8 +6,10 @@ import { resolveProjectConfig } from '../src/config/project.js';
 import type { DevProcessSpec } from '../src/dev/project.js';
 import {
   GENERATED_WASM_ARTIFACT_PATH,
+  MAX_WASM_ARTIFACT_SIZE_BYTES,
   resolveTestnetDeploymentPlan,
   runDeploymentPreflight,
+  WASM_MAGIC_HEADER,
 } from '../src/deployment/project.js';
 import { EXIT_CODES, runWithCliErrorBoundary } from '../src/errors/index.js';
 import {
@@ -134,6 +136,70 @@ describe('SW-161: deploy validation before subprocess side effects', () => {
             'deployer',
           ]),
         );
+      }));
+
+    it('rejects an empty generated Wasm artifact before invoking the executor', async () =>
+      withTempDirectory(async (root) => {
+        writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+        const artifactPath = join(
+          root,
+          ...GENERATED_WASM_ARTIFACT_PATH.split('/'),
+        );
+        mkdirSync(dirname(artifactPath), { recursive: true });
+        writeFileSync(artifactPath, Buffer.alloc(0));
+
+        expectZeroSubprocessSideEffects(
+          await runInvalidDeploy(root, [
+            '--network',
+            'testnet',
+            '--source',
+            'deployer',
+          ]),
+        );
+      }));
+
+    it('rejects an oversized generated Wasm artifact before invoking the executor', async () =>
+      withTempDirectory(async (root) => {
+        writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+        const artifactPath = join(
+          root,
+          ...GENERATED_WASM_ARTIFACT_PATH.split('/'),
+        );
+        mkdirSync(dirname(artifactPath), { recursive: true });
+        const buf = Buffer.alloc(MAX_WASM_ARTIFACT_SIZE_BYTES + 1);
+        WASM_MAGIC_HEADER.copy(buf);
+        writeFileSync(artifactPath, buf);
+
+        const result = await runInvalidDeploy(root, [
+          '--network',
+          'testnet',
+          '--source',
+          'deployer',
+        ]);
+        expectZeroSubprocessSideEffects(result);
+        expect(result.stderr).toContain(
+          'exceeds the maximum allowed Soroban contract size',
+        );
+      }));
+
+    it('rejects an unexpected format artifact before invoking the executor', async () =>
+      withTempDirectory(async (root) => {
+        writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+        const artifactPath = join(
+          root,
+          ...GENERATED_WASM_ARTIFACT_PATH.split('/'),
+        );
+        mkdirSync(dirname(artifactPath), { recursive: true });
+        writeFileSync(artifactPath, 'not a valid wasm file\n');
+
+        const result = await runInvalidDeploy(root, [
+          '--network',
+          'testnet',
+          '--source',
+          'deployer',
+        ]);
+        expectZeroSubprocessSideEffects(result);
+        expect(result.stderr).toContain('not a valid WebAssembly binary');
       }));
 
     it('rejects stale generated Wasm output before invoking the executor', async () =>

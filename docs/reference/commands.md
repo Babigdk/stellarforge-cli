@@ -221,7 +221,7 @@ stellarforge deploy --source release-deployer
 | --------------------- | ---------------------------------------------------------------------------- |
 | `--network <network>` | Explicit deployment network. CLI value overrides project configuration.      |
 | `--source <identity>` | Named Stellar CLI identity alias. CLI value overrides project configuration. |
-| `--preflight`         | Validate inputs and project requirements without starting the Stellar CLI.    |
+| `--preflight`         | Validate inputs and project requirements without starting the Stellar CLI.   |
 
 The effective network and identity must both be present after configuration resolution.
 
@@ -238,6 +238,8 @@ stellar contract deploy --wasm target/wasm32v1-none/release/stellarforge-starter
 ```
 
 No shell interpolation is used. Signing material remains under Stellar CLI identity management.
+
+The generated Wasm artifact (`target/wasm32v1-none/release/stellarforge-starter-contract.wasm`) must be a regular, non-empty WebAssembly v1 binary (`\0asm` magic header and version 1) located within the canonical project workspace. It must not exceed the documented Soroban contract size limit of 128 KiB (131,072 bytes). Directory paths, symlinks, symlinks escaping the workspace, empty files, oversized files, and unexpected binary or text formats fail locally with exit code `2` before any subprocess is started.
 
 Deployment output is validated against the official Stellar contract identifier format (`C...`, 56 characters Base32). Malformed, truncated, missing, or multiple conflicting contract IDs cannot be mistaken for deployment success.
 
@@ -269,15 +271,15 @@ The command reports one finding per check, each with a stable id, category, labe
 
 Findings:
 
-| Id | Category | Required | Meaning |
-| --- | --- | --- | --- |
-| `project.manifest-present` | `project` | yes | at least one of `package.json` or `Cargo.toml` exists |
-| `project.package-json.parseable` | `package-manifest` | yes | an existing `package.json` is valid JSON object declaring a `scripts` object |
-| `project.package-json.scripts-test` | `package-manifest` | no | `package.json` declares a non-empty `scripts.test` command (warning only) |
-| `project.cargo-toml.parseable` | `cargo-manifest` | yes | an existing `Cargo.toml` is valid UTF-8 declaring `[package]` or `[workspace]` |
-| `project.configuration.well-formed` | `configuration` | yes | an existing `stellarforge.config.json` passes validation (see [Configuration](configuration.md)) |
+| Id                                  | Category           | Required | Meaning                                                                                          |
+| ----------------------------------- | ------------------ | -------- | ------------------------------------------------------------------------------------------------ |
+| `project.manifest-present`          | `project`          | yes      | at least one of `package.json` or `Cargo.toml` exists                                            |
+| `project.package-json.parseable`    | `package-manifest` | yes      | an existing `package.json` is valid JSON object declaring a `scripts` object                     |
+| `project.package-json.scripts-test` | `package-manifest` | no       | `package.json` declares a non-empty `scripts.test` command (warning only)                        |
+| `project.cargo-toml.parseable`      | `cargo-manifest`   | yes      | an existing `Cargo.toml` is valid UTF-8 declaring `[package]` or `[workspace]`                   |
+| `project.configuration.well-formed` | `configuration`    | yes      | an existing `stellarforge.config.json` passes validation (see [Configuration](configuration.md)) |
 
-Only *required*-check failures set the exit code `5` (diagnostic failure); a `0` exit means the documented required requirements are met. The `scripts.test` finding is informational and never changes the exit code by itself.
+Only _required_-check failures set the exit code `5` (diagnostic failure); a `0` exit means the documented required requirements are met. The `scripts.test` finding is informational and never changes the exit code by itself.
 
 ### Exit behavior
 
@@ -304,7 +306,6 @@ The following are not part of the implemented MVP command surface:
 
 Do not rely on roadmap items as available behavior until their implementation is merged and documented.
 
-
 ### Preflight
 
 Before the Stellar CLI deployment subprocess starts, `stellarforge deploy` runs a local preflight that lists each required prerequisite with its pass/fail state. Typical checks include:
@@ -312,7 +313,7 @@ Before the Stellar CLI deployment subprocess starts, `stellarforge deploy` runs 
 - the project contains a supported Cargo smart-contract layout;
 - the effective network is exactly `testnet`;
 - the effective source is a valid named Stellar CLI identity alias;
-- the generated Wasm artifact exists, is readable, and is not stale;
+- the generated Wasm artifact exists, is a valid non-empty WebAssembly v1 binary, does not exceed the 128 KiB (131,072 bytes) Soroban contract size limit, is readable, and is not stale;
 - the configuration file, if present, is well formed.
 
 Preflight is validation and reporting only. It does not invoke a deployment transaction, does not spawn subprocesses, and does not contact any network endpoint.
@@ -322,6 +323,6 @@ Preflight output never prints private keys, seed phrases, tokens, account StrKey
 - `network`: set `--network testnet` or add `"network": "testnet"` to `stellarforge.config.json`;
 - `identity`: pass `--source <alias>` with a named Stellar CLI identity, not a raw secret or public key;
 - `project-layout`: run the command from a directory containing a supported Cargo smart-contract project;
-- `wasm-artifact`: run `stellar contract build` to refresh the generated Wasm artifact.
+- `wasm-artifact`: run `stellar contract build` to refresh the generated Wasm artifact, or `stellar contract optimize` if the artifact exceeds the 128 KiB Soroban limit.
 
 If any required preflight check fails, the command exits with code `2` before any deployment subprocess is started.

@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { createDeployCommand } from '../src/commands/deploy.js';
 import {
   GENERATED_WASM_ARTIFACT_PATH,
+  MAX_WASM_ARTIFACT_SIZE_BYTES,
   resolveTestnetDeploymentPlan,
+  WASM_MAGIC_HEADER,
 } from '../src/deployment/project.js';
 import type { ManagedChildProcess } from '../src/dev/orchestrator.js';
 import type { DevProcessSpec } from '../src/dev/project.js';
@@ -311,13 +313,75 @@ describe('Stellar Testnet deployment end-to-end fixtures', () => {
       expect(spawned).toBe(false);
     }));
 
+  it('fails before spawning when the artifact is oversized', () =>
+    withTempDirectory(async (root) => {
+      writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+      const path = artifactPath(root);
+      mkdirSync(dirname(path), { recursive: true });
+      const buf = Buffer.alloc(MAX_WASM_ARTIFACT_SIZE_BYTES + 1);
+      WASM_MAGIC_HEADER.copy(buf);
+      writeFileSync(path, buf);
+
+      let spawned = false;
+      const command = createDeployCommand({
+        cwd: () => root,
+        spawnProcess: () => {
+          spawned = true;
+          return new MockDeployProcess();
+        },
+      });
+
+      const error = await command.parseAsync(deployArgs()).then(
+        () => undefined,
+        (reason: unknown) => reason,
+      );
+
+      expect(error).toBeInstanceOf(ValidationCliError);
+      expect((error as ValidationCliError).userMessage).toContain(
+        'exceeds the maximum allowed Soroban contract size',
+      );
+      expect((error as ValidationCliError).userMessage).toContain('128 KiB');
+      expect(spawned).toBe(false);
+    }));
+
+  it('fails before spawning when the artifact is not a valid WebAssembly binary', () =>
+    withTempDirectory(async (root) => {
+      writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+      const path = artifactPath(root);
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, 'plain text contract\n');
+
+      let spawned = false;
+      const command = createDeployCommand({
+        cwd: () => root,
+        spawnProcess: () => {
+          spawned = true;
+          return new MockDeployProcess();
+        },
+      });
+
+      const error = await command.parseAsync(deployArgs()).then(
+        () => undefined,
+        (reason: unknown) => reason,
+      );
+
+      expect(error).toBeInstanceOf(ValidationCliError);
+      expect((error as ValidationCliError).userMessage).toContain(
+        'not a valid WebAssembly binary',
+      );
+      expect(spawned).toBe(false);
+    }));
+
   it.skipIf(!symlinksSupported)(
     'fails before spawning when the artifact escapes the workspace through a symlink',
     () =>
       withTempDirectory(async (root) => {
         const outside = createTempDirectoryFixture();
         try {
-          writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+          writeFileSync(
+            join(root, 'Cargo.toml'),
+            '[workspace]\nmembers = []\n',
+          );
           writeGeneratedWasmArtifact(outside.path);
           symlinkSync(outside.path, join(root, 'target'), 'junction');
 

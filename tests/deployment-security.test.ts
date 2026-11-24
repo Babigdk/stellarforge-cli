@@ -1,12 +1,18 @@
 import type * as childProcess from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDeployCommand } from '../src/commands/deploy.js';
-import { GENERATED_WASM_ARTIFACT_PATH } from '../src/deployment/project.js';
+import {
+  GENERATED_WASM_ARTIFACT_PATH,
+  MAX_WASM_ARTIFACT_SIZE_BYTES,
+  WASM_MAGIC_HEADER,
+} from '../src/deployment/project.js';
+import { DETERMINISTIC_LOCALE_ENVIRONMENT } from '../src/dev/environment.js';
 import { EXIT_CODES, runWithCliErrorBoundary } from '../src/errors/index.js';
 import {
   createCapturedTerminalOutput,
+  createTempDirectoryFixture,
   FakeChildProcess,
   SECRET_FIXTURE_LINES,
   SECRET_FIXTURE_VALUES,
@@ -57,6 +63,22 @@ const UNSAFE_SOURCES = [
   'a'.repeat(65),
 ];
 
+function canCreateSymlink(): boolean {
+  const fixture = createTempDirectoryFixture();
+  try {
+    const target = join(fixture.path, 'target');
+    writeFileSync(target, 'link-target');
+    symlinkSync(target, join(fixture.path, 'link'));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
+const symlinksSupported = canCreateSymlink();
+
 interface DeployRun {
   readonly exitCode: number;
   readonly stdout: string;
@@ -71,6 +93,7 @@ interface DeployScenario {
   readonly childExitCode?: number;
   readonly childStdout?: string[];
   readonly childStderr?: string[];
+  readonly writeArtifact?: (root: string) => void;
 }
 
 async function runDeployScenario(
@@ -79,7 +102,11 @@ async function runDeployScenario(
 ): Promise<DeployRun> {
   if (scenario.cargo ?? true) {
     writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nmembers = []\n');
-    writeGeneratedWasmArtifact(root);
+    if (scenario.writeArtifact !== undefined) {
+      scenario.writeArtifact(root);
+    } else {
+      writeGeneratedWasmArtifact(root);
+    }
   }
   if (scenario.config !== undefined) {
     writeFileSync(
@@ -317,6 +344,7 @@ describe('deployment security regression suite', () => {
           PATH: '/usr/bin',
           HOME: '/home/fixture',
           STELLAR_NETWORK: 'testnet',
+          ...DETERMINISTIC_LOCALE_ENVIRONMENT,
         });
       }));
 
@@ -342,6 +370,171 @@ describe('deployment security regression suite', () => {
         expect(result.exitCode).toBe(EXIT_CODES.validation);
         expect(spawnMock).not.toHaveBeenCalled();
       }));
+  });
+
+  describe('artifact boundary: Wasm file type and size validation before subprocess invocation', () => {
+    function artifactPath(root: string): string {
+      return join(root, ...GENERATED_WASM_ARTIFACT_PATH.split('/'));
+    }
+
+    it('rejects an empty Wasm artifact (0 bytes) before invoking the Stellar CLI', async () => {
+      const result = await deploy({
+        args: ['--network', 'testnet', '--source', 'deployer'],
+        writeArtifact: (root) => {
+          const path = artifactPath(root);
+          mkdirSync(dirname(path), { recursive: true });
+          writeFileSync(path, Buffer.alloc(0));
+        },
+      });
+
+      expect(result.exitCode).toBe(EXIT_CODES.validation);
+      expect(result.stderr).toContain('not a non-empty regular file');
+      expect(spawnMock).not.toHaveBeenCalled();
+      expect(result.stdout).not.toContain('Deploying');
+    });
+
+    it('rejects an oversized Wasm artifact (> 128 KiB) before invoking the Stellar CLI', async () => {
+      const oversizedBytes = MAX_WASM_ARTIFACT_SIZE_BYTES + 1;
+      const result = await deploy({
+        args: ['--network', 'testnet', '--source', 'deployer'],
+        writeArtifact: (root) => {
+          const path = artifactPath(root);
+          mkdirSync(dirname(path), { recursive: true });
+          const buf = Buffer.alloc(oversizedBytes);
+          WASM_MAGIC_HEADER.copy(buf);
+          writeFileSync(path, buf);
+        },
+      });
+
+      expect(result.exitCode).toBe(EXIT_CODES.validation);
+      expect(result.stderr).toContain(
+        'exceeds the maximum allowed Soroban contract size',
+      );
+      expect(result.stderr).toContain('128 KiB');
+      expect(spawnMock).not.toHaveBeenCalled();
+      expect(result.stdout).not.toContain('Deploying');
+    });
+
+    it('accepts a Wasm artifact at exactly the maximum allowed size (128 KiB)', async () => {
+      const result = await deploy({
+        args: ['--network', 'testnet', '--source', 'deployer'],
+        writeArtifact: (root) => {
+          const path = artifactPath(root);
+          mkdirSync(dirname(path), { recursive: true });
+          const buf = Buffer.alloc(MAX_WASM_ARTIFACT_SIZE_BYTES);
+          WASM_MAGIC_HEADER.copy(buf);
+          writeFileSync(path, buf);
+        },
+      });
+
+      expect(result.exitCode).toBe(EXIT_CODES.success);
+      expect(spawnMock).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ['plain text', Buffer.from('console.log("not a wasm binary");\n')],
+      ['JSON', Buffer.from('{"not": "wasm"}')],
+      ['shell script', Buffer.from('#!/bin/sh\necho hi\n')],
+      ['ELF binary', Buffer.from([0x7f, 0x45, 0x4c, 0x46, 1, 1, 1, 0])],
+      ['Mach-O binary', Buffer.from([0xfe, 0xed, 0xfa, 0xce, 0, 0, 0, 1])],
+      ['truncated header (< 8 bytes)', Buffer.from([0x00, 0x61, 0x73, 0x6d])],
+      [
+        'unexpected Wasm version',
+        Buffer.from([0x00, 0x61, 0x73, 0x6d, 2, 0, 0, 0]),
+      ],
+      [
+        'inverted magic bytes',
+        Buffer.from([0x6d, 0x73, 0x61, 0x00, 1, 0, 0, 0]),
+      ],
+    ])(
+      'rejects unexpected file format %s before invoking the Stellar CLI',
+      async (_name, data) => {
+        const result = await deploy({
+          args: ['--network', 'testnet', '--source', 'deployer'],
+          writeArtifact: (root) => {
+            const path = artifactPath(root);
+            mkdirSync(dirname(path), { recursive: true });
+            writeFileSync(path, data);
+          },
+        });
+
+        expect(result.exitCode).toBe(EXIT_CODES.validation);
+        expect(result.stderr).toContain('not a valid WebAssembly binary');
+        expect(spawnMock).not.toHaveBeenCalled();
+        expect(result.stdout).not.toContain('Deploying');
+      },
+    );
+
+    it('rejects when the artifact path is a directory before invoking the Stellar CLI', async () => {
+      const result = await deploy({
+        args: ['--network', 'testnet', '--source', 'deployer'],
+        writeArtifact: (root) => {
+          mkdirSync(artifactPath(root), { recursive: true });
+        },
+      });
+
+      expect(result.exitCode).toBe(EXIT_CODES.validation);
+      expect(result.stderr).toContain('not a non-empty regular file');
+      expect(spawnMock).not.toHaveBeenCalled();
+      expect(result.stdout).not.toContain('Deploying');
+    });
+
+    it.skipIf(!symlinksSupported)(
+      'rejects a symlinked artifact file before invoking the Stellar CLI',
+      async () => {
+        const result = await deploy({
+          args: ['--network', 'testnet', '--source', 'deployer'],
+          writeArtifact: (root) => {
+            const path = artifactPath(root);
+            mkdirSync(dirname(path), { recursive: true });
+            const realPath = join(root, 'target', 'real.wasm');
+            writeFileSync(realPath, WASM_MAGIC_HEADER);
+            symlinkSync(realPath, path);
+          },
+        });
+
+        expect(result.exitCode).toBe(EXIT_CODES.validation);
+        expect(result.stderr).toContain('not a symbolic link');
+        expect(spawnMock).not.toHaveBeenCalled();
+        expect(result.stdout).not.toContain('Deploying');
+      },
+    );
+
+    it.skipIf(!symlinksSupported)(
+      'rejects an artifact target symlink escaping the project root without leaking external paths',
+      () =>
+        withTempDirectory(async (root) => {
+          const outside = createTempDirectoryFixture();
+          try {
+            writeGeneratedWasmArtifact(outside.path);
+            writeFileSync(
+              join(root, 'Cargo.toml'),
+              '[workspace]\nmembers = []\n',
+            );
+            symlinkSync(outside.path, join(root, 'target'), 'junction');
+
+            const result = await runDeployScenario(
+              {
+                args: ['--network', 'testnet', '--source', 'deployer'],
+                writeArtifact: () => {
+                  // Artifact is already in outside.path via symlinked target
+                },
+              },
+              root,
+            );
+
+            expect(result.exitCode).toBe(EXIT_CODES.validation);
+            expect(result.stderr).toContain(
+              'outside the expected project workspace',
+            );
+            expect(result.stderr).not.toContain(outside.path);
+            expect(spawnMock).not.toHaveBeenCalled();
+            expect(result.stdout).not.toContain('Deploying');
+          } finally {
+            outside.cleanup();
+          }
+        }),
+    );
   });
 
   describe('output boundary: secret-like subprocess output is not reflected', () => {

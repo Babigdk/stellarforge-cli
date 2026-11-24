@@ -1,8 +1,12 @@
 import {
   accessSync,
+  closeSync,
   constants,
   existsSync,
+  fstatSync,
   lstatSync,
+  openSync,
+  readSync,
   readdirSync,
   realpathSync,
   type Dirent,
@@ -18,6 +22,30 @@ export const DEPLOYMENT_TIMEOUT_MS = 10 * 60 * 1000;
 export const DEPLOYMENT_TERMINATION_GRACE_MS = 5 * 1000;
 export const GENERATED_WASM_ARTIFACT_PATH =
   'target/wasm32v1-none/release/stellarforge-starter-contract.wasm';
+
+/**
+ * Documented maximum size for a Soroban contract Wasm artifact on Stellar
+ * networks (128 KiB = 131,072 bytes).
+ */
+export const MAX_WASM_ARTIFACT_SIZE_BYTES = 128 * 1024;
+
+/**
+ * Standard WebAssembly binary header length (4-byte magic + 4-byte version).
+ */
+export const WASM_HEADER_SIZE_BYTES = 8;
+
+/**
+ * Standard WebAssembly binary magic bytes (`\0asm`).
+ */
+export const WASM_MAGIC_BYTES = Buffer.from([0x00, 0x61, 0x73, 0x6d]);
+
+/**
+ * Canonical WebAssembly v1 header (`\0asm` followed by 32-bit LE version 1:
+ * `0x01, 0x00, 0x00, 0x00`).
+ */
+export const WASM_MAGIC_HEADER = Buffer.from([
+  0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+]);
 
 export interface TestnetDeploymentInput {
   readonly cwd: string;
@@ -179,7 +207,7 @@ function isCanonicalArtifactLocation(
   );
 }
 
-function validateGeneratedWasmArtifact(projectRoot: string): void {
+export function validateGeneratedWasmArtifact(projectRoot: string): void {
   const artifactPath = resolve(projectRoot, GENERATED_WASM_ARTIFACT_PATH);
   const artifactStat = readStat(artifactPath);
 
@@ -193,17 +221,23 @@ function validateGeneratedWasmArtifact(projectRoot: string): void {
       'The generated Wasm artifact must be a regular build output, not a symbolic link.',
     );
   }
-  if (!artifactStat.isFile() || artifactStat.size === 0) {
+  if (
+    artifactStat.isDirectory() ||
+    !artifactStat.isFile() ||
+    artifactStat.size === 0
+  ) {
     throw new ValidationCliError(
       `The generated Wasm artifact at ${GENERATED_WASM_ARTIFACT_PATH} is not a non-empty regular file. Run \`stellar contract build\` before deploying.`,
     );
   }
-
-  try {
-    accessSync(artifactPath, constants.R_OK);
-  } catch {
+  if (artifactStat.size > MAX_WASM_ARTIFACT_SIZE_BYTES) {
     throw new ValidationCliError(
-      `The generated Wasm artifact at ${GENERATED_WASM_ARTIFACT_PATH} is not readable. Rebuild it with \`stellar contract build\`.`,
+      `The generated Wasm artifact at ${GENERATED_WASM_ARTIFACT_PATH} (${artifactStat.size} bytes) exceeds the maximum allowed Soroban contract size of ${MAX_WASM_ARTIFACT_SIZE_BYTES} bytes (128 KiB). Rebuild or optimize the contract before deploying.`,
+    );
+  }
+  if (artifactStat.size < WASM_HEADER_SIZE_BYTES) {
+    throw new ValidationCliError(
+      `The generated Wasm artifact at ${GENERATED_WASM_ARTIFACT_PATH} is not a valid WebAssembly binary. Run \`stellar contract build\` before deploying.`,
     );
   }
 
@@ -222,6 +256,58 @@ function validateGeneratedWasmArtifact(projectRoot: string): void {
     throw new ValidationCliError(
       'The generated Wasm artifact is outside the expected project workspace.',
     );
+  }
+
+  try {
+    accessSync(artifactPath, constants.R_OK);
+  } catch {
+    throw new ValidationCliError(
+      `The generated Wasm artifact at ${GENERATED_WASM_ARTIFACT_PATH} is not readable. Rebuild it with \`stellar contract build\`.`,
+    );
+  }
+
+  const headerBuffer = Buffer.alloc(WASM_HEADER_SIZE_BYTES);
+  let fd: number | undefined;
+  try {
+    const noFollowFlag =
+      typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0;
+    fd = openSync(artifactPath, constants.O_RDONLY | noFollowFlag);
+    const openedStat = fstatSync(fd);
+    if (!openedStat.isFile() || openedStat.size === 0) {
+      throw new ValidationCliError(
+        `The generated Wasm artifact at ${GENERATED_WASM_ARTIFACT_PATH} is not a non-empty regular file. Run \`stellar contract build\` before deploying.`,
+      );
+    }
+    if (openedStat.size > MAX_WASM_ARTIFACT_SIZE_BYTES) {
+      throw new ValidationCliError(
+        `The generated Wasm artifact at ${GENERATED_WASM_ARTIFACT_PATH} (${openedStat.size} bytes) exceeds the maximum allowed Soroban contract size of ${MAX_WASM_ARTIFACT_SIZE_BYTES} bytes (128 KiB). Rebuild or optimize the contract before deploying.`,
+      );
+    }
+    const bytesRead = readSync(fd, headerBuffer, 0, WASM_HEADER_SIZE_BYTES, 0);
+    if (
+      bytesRead < WASM_HEADER_SIZE_BYTES ||
+      !headerBuffer.equals(WASM_MAGIC_HEADER)
+    ) {
+      throw new ValidationCliError(
+        `The generated Wasm artifact at ${GENERATED_WASM_ARTIFACT_PATH} is not a valid WebAssembly binary. Run \`stellar contract build\` before deploying.`,
+      );
+    }
+  } catch (error) {
+    if (error instanceof ValidationCliError) {
+      throw error;
+    }
+    throw new ValidationCliError(
+      `The generated Wasm artifact at ${GENERATED_WASM_ARTIFACT_PATH} is not readable. Rebuild it with \`stellar contract build\`.`,
+      { cause: error },
+    );
+  } finally {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {
+        // Ignore descriptor close errors.
+      }
+    }
   }
 
   for (const sourceStat of collectContractSourceStats(projectRoot)) {
