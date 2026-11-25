@@ -39,6 +39,22 @@ function parsePort(value) {
 }
 
 function parseUrl(name, value) {
+  if (typeof value !== 'string') {
+    throw new Error(`${name} must be a string URL.`);
+  }
+
+  if (value.trim() !== value) {
+    throw new Error(`${name} must not contain surrounding whitespace.`);
+  }
+
+  if (/\s/.test(value)) {
+    throw new Error(`${name} must not contain whitespace.`);
+  }
+
+  if (value.includes('\\')) {
+    throw new Error(`${name} must not contain backslashes.`);
+  }
+
   let url;
   try {
     url = new URL(value);
@@ -50,6 +66,14 @@ function parseUrl(name, value) {
     throw new Error(`${name} must use HTTPS or HTTP protocol.`);
   }
 
+  if (!/^https?:\/\//i.test(value)) {
+    throw new Error(`${name} must be an absolute URL using HTTPS or HTTP protocol.`);
+  }
+
+  if (!url.hostname) {
+    throw new Error(`${name} must include a hostname.`);
+  }
+
   if (
     url.protocol !== 'https:' &&
     url.hostname !== '127.0.0.1' &&
@@ -58,8 +82,21 @@ function parseUrl(name, value) {
     throw new Error(`${name} must use HTTPS unless it targets localhost.`);
   }
 
-  if (url.username || url.password) {
+  const authority = value.slice(value.indexOf('//') + 2).split(/[/?#]/, 1)[0];
+  if (authority.includes('@') || url.username || url.password) {
     throw new Error(`${name} must not contain embedded user credentials.`);
+  }
+
+  if (url.hash) {
+    throw new Error(`${name} must not contain a fragment.`);
+  }
+
+  if (url.search) {
+    throw new Error(`${name} must not contain a query string.`);
+  }
+
+  if (url.port && !/^\d+$/.test(url.port)) {
+    throw new Error(`${name} must contain a valid port.`);
   }
 
   return url.toString().replace(/\/$/, '');

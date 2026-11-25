@@ -94,13 +94,23 @@ test('rejects non-HTTP/HTTPS protocols even on localhost', () => {
 });
 
 test('rejects URLs containing embedded credentials or secrets', () => {
+  const secret = 'https://user:super-secret-pass@horizon-testnet.stellar.org';
+
   assert.throws(
     () =>
       getConfig({
         STELLAR_HORIZON_URL:
-          'https://user:secret-token@horizon-testnet.stellar.org',
+          secret,
       }),
-    /STELLAR_HORIZON_URL must not contain embedded user credentials\./,
+    (error) => {
+      assert.match(
+        error.message,
+        /STELLAR_HORIZON_URL must not contain embedded user credentials\./,
+      );
+      assert.doesNotMatch(error.message, /super-secret-pass/);
+      assert.doesNotMatch(error.message, new RegExp(secret));
+      return true;
+    },
   );
 
   assert.throws(
@@ -109,6 +119,45 @@ test('rejects URLs containing embedded credentials or secrets', () => {
         STELLAR_RPC_URL: 'https://apikey@soroban-testnet.stellar.org',
       }),
     /STELLAR_RPC_URL must not contain embedded user credentials\./,
+  );
+});
+
+test('rejects fragments, query strings, whitespace, and malformed hosts or ports', () => {
+  assert.throws(
+    () => getConfig({ STELLAR_HORIZON_URL: 'https:example.com/rpc' }),
+    /STELLAR_HORIZON_URL must be an absolute URL using HTTPS or HTTP protocol\./,
+  );
+  assert.throws(
+    () => getConfig({ STELLAR_RPC_URL: 'http:/localhost:8000/rpc' }),
+    /STELLAR_RPC_URL must be an absolute URL using HTTPS or HTTP protocol\./,
+  );
+  assert.throws(
+    () => getConfig({ STELLAR_HORIZON_URL: 'https://horizon.example.com/#docs' }),
+    /STELLAR_HORIZON_URL must not contain a fragment\./,
+  );
+  assert.throws(
+    () => getConfig({ STELLAR_RPC_URL: 'https://rpc.example.com/rpc?key=secret' }),
+    /STELLAR_RPC_URL must not contain a query string\./,
+  );
+  assert.throws(
+    () => getConfig({ STELLAR_RPC_URL: ' https://rpc.example.com/rpc' }),
+    /STELLAR_RPC_URL must not contain surrounding whitespace\./,
+  );
+  assert.throws(
+    () => getConfig({ STELLAR_HORIZON_URL: 'https://horizon.example.com /rpc' }),
+    /STELLAR_HORIZON_URL must not contain whitespace\./,
+  );
+  assert.throws(
+    () => getConfig({ STELLAR_RPC_URL: 'https://' }),
+    /STELLAR_RPC_URL must be a valid absolute URL\./,
+  );
+  assert.throws(
+    () => getConfig({ STELLAR_HORIZON_URL: 'https://horizon.example.com:abc/rpc' }),
+    /STELLAR_HORIZON_URL must be a valid absolute URL\./,
+  );
+  assert.throws(
+    () => getConfig({ STELLAR_RPC_URL: 'https:\\\\rpc.example.com\\rpc' }),
+    /STELLAR_RPC_URL must not contain backslashes\./,
   );
 });
 

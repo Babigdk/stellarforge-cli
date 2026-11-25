@@ -77,7 +77,7 @@ Supported values and defaults:
 Configuration is validated at startup via `src/config.js`:
 
 - Remote Stellar endpoints must use HTTPS; plain HTTP is allowed only for `localhost` and `127.0.0.1` development (e.g. `http://127.0.0.1:8000`);
-- Endpoint URLs must be valid absolute URLs and cannot contain embedded credentials or secrets;
+- Endpoint URLs must be valid absolute URLs and cannot contain embedded credentials or secrets, fragments, query strings, or whitespace;
 - `API_PORT` must be a valid integer port between 1 and 65535;
 - `STELLAR_NETWORK` and `API_HOST` must not be empty.
 
